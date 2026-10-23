@@ -43,3 +43,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Agent workflow, local only
+HANDOFF.md
+HANDOFF-HISTORY*.md
+/kb/
+/ops/
