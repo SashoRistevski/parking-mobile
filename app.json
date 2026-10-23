@@ -1,15 +1,18 @@
 {
   "expo": {
-    "name": "parking-mobile-scaffold-temp",
-    "slug": "parking-mobile-scaffold-temp",
+    "name": "parking-mobile",
+    "slug": "parking-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "parking",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "mk.sasho.parking"
     },
     "android": {
+      "package": "mk.sasho.parking",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +23,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
