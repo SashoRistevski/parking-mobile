@@ -32,10 +32,10 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -71,13 +71,17 @@ jobs:
             CONFIGURATION=Release
           fi
 
-          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' ! -name 'Pods.xcworkspace' | head -1)
           if [ -z "$WORKSPACE" ]; then
             echo "No .xcworkspace found under ios/"
             exit 1
           fi
 
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['workspace']['schemes'][0])")
+          SCHEME=$(find ios -maxdepth 1 -name '*.xcodeproj' ! -name 'Pods.xcodeproj' -exec basename {} .xcodeproj \;)
+          if [ -z "$SCHEME" ]; then
+            echo "No app .xcodeproj found under ios/"
+            exit 1
+          fi
           echo "Using scheme: $SCHEME configuration: $CONFIGURATION"
 
           xcodebuild \
@@ -96,9 +100,10 @@ jobs:
           VARIANT: ${{ inputs.variant }}
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
-          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive" -type d -name '*.app' | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "No .app in archive"
+            find "$RUNNER_TEMP/App.xcarchive" -maxdepth 3 -print
             exit 1
           fi
           APP_NAME=$(basename "$APP_PATH" .app)
