@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Паркирај"
+  },
+  "android": {
+    "app_name": "Паркирај"
+  }
+}

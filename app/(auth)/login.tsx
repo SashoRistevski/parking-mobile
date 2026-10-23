@@ -1,20 +1,21 @@
-import { Link } from 'expo-router';
 import { useState } from 'react';
-import {
-  Button,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { login } from '../../src/api/auth';
 import { displayErrorMessage } from '../../src/api/errors';
 import { useAuth } from '../../src/auth/AuthContext';
+import { AppText } from '../../src/components/AppText';
 import { AuthScreen } from '../../src/components/AuthScreen';
+import { Button } from '../../src/components/Button';
+import { TextField } from '../../src/components/TextField';
+import { TextLink } from '../../src/components/TextLink';
+import { useLocale } from '../../src/i18n/LocaleProvider';
+import { useTheme } from '../../src/theme/ThemeProvider';
 
 export default function LoginScreen() {
   const { signInWithToken } = useAuth();
+  const { t } = useLocale();
+  const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -34,50 +35,43 @@ export default function LoginScreen() {
   }
 
   return (
-    <AuthScreen title="Log in">
-      <TextInput
+    <AuthScreen title={t('logIn')}>
+      <TextField
         autoCapitalize="none"
         autoComplete="email"
         keyboardType="email-address"
-        placeholder="Email"
-        style={styles.input}
+        placeholder={t('email')}
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
+      <TextField
         autoCapitalize="none"
         autoComplete="password"
-        placeholder="Password"
+        placeholder={t('password')}
         secureTextEntry
-        style={styles.input}
+        textContentType="password"
         value={password}
         onChangeText={setPassword}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <AppText variant="body" style={{ color: colors.pay }}>
+          {error}
+        </AppText>
+      ) : null}
       <Button
-        title={submitting ? 'Logging in…' : 'Log in'}
+        title={submitting ? t('loggingIn') : t('logIn')}
         onPress={onSubmit}
         disabled={submitting}
       />
       <View style={styles.links}>
-        <Link href="/(auth)/register">Create an account</Link>
-        <Link href="/(auth)/forgot-password">Forgot password</Link>
+        <TextLink href="/(auth)/register">{t('createAccount')}</TextLink>
+        <TextLink href="/(auth)/forgot-password">{t('forgotPassword')}</TextLink>
       </View>
     </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  error: {
-    color: '#b00020',
-  },
   links: {
     marginTop: 16,
     gap: 8,

@@ -1,47 +1,65 @@
-import { Link } from 'expo-router';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useAuth } from '../../src/auth/AuthContext';
+import { AppText } from '../../src/components/AppText';
+import { Button } from '../../src/components/Button';
+import { Card } from '../../src/components/Card';
+import { Screen } from '../../src/components/Screen';
+import { TextLink } from '../../src/components/TextLink';
+import { useLocale } from '../../src/i18n/LocaleProvider';
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
+  const { locale, setLocale, t } = useLocale();
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Signed in as</Text>
-      <Text style={styles.email}>{user?.email}</Text>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Later permissions</Text>
-        <Link href="/(app)/explain/location" style={styles.link}>
-          Location (Always)
-        </Link>
-        <Link href="/(app)/explain/motion" style={styles.link}>
-          Motion and Fitness
-        </Link>
-        <Link href="/(app)/explain/notifications" style={styles.link}>
-          Notifications
-        </Link>
+    <Screen title={t('appName')}>
+      <View style={styles.localeRow}>
+        <Button
+          title={t('macedonian')}
+          variant={locale === 'mk' ? 'primary' : 'secondary'}
+          onPress={() => setLocale('mk')}
+        />
+        <Button
+          title={t('english')}
+          variant={locale === 'en' ? 'primary' : 'secondary'}
+          onPress={() => setLocale('en')}
+        />
       </View>
 
-      <Button title="Log out" onPress={() => void signOut()} />
-    </View>
+      <AppText variant="muted" style={styles.signedInLabel}>
+        {t('signedInAs')}
+      </AppText>
+      <Card style={styles.emailCard}>
+        <AppText variant="label">{user?.email}</AppText>
+      </Card>
+
+      <View style={styles.section}>
+        <AppText variant="label" style={styles.sectionTitle}>
+          {t('laterPermissions')}
+        </AppText>
+        <TextLink href="/(app)/explain/location">{t('location')}</TextLink>
+        <TextLink href="/(app)/explain/motion">{t('motion')}</TextLink>
+        <TextLink href="/(app)/explain/notifications">
+          {t('notifications')}
+        </TextLink>
+      </View>
+
+      <Button title={t('logOut')} onPress={() => void signOut()} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
-    gap: 12,
+  localeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 24,
   },
-  label: {
-    color: '#666',
+  signedInLabel: {
+    marginBottom: 8,
   },
-  email: {
-    fontSize: 18,
-    fontWeight: '600',
+  emailCard: {
     marginBottom: 16,
   },
   section: {
@@ -49,10 +67,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionTitle: {
-    fontWeight: '600',
     marginBottom: 4,
-  },
-  link: {
-    color: '#1565c0',
   },
 });

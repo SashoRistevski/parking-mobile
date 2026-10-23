@@ -1,15 +1,18 @@
 {
   "expo": {
-    "name": "parking-mobile",
+    "name": "Паркирај",
     "slug": "parking-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "parking",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "mk.sasho.parking"
+      "bundleIdentifier": "mk.sasho.parking",
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true
+      }
     },
     "android": {
       "package": "mk.sasho.parking",
@@ -24,7 +27,24 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "locales": {
+      "mk": "./locales/mk.json",
+      "en": "./locales/en.json"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["mk", "en"],
+            "android": ["mk", "en"]
+          }
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

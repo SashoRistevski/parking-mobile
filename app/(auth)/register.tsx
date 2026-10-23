@@ -1,20 +1,21 @@
-import { Link } from 'expo-router';
 import { useState } from 'react';
-import {
-  Button,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { register } from '../../src/api/auth';
 import { displayErrorMessage } from '../../src/api/errors';
 import { useAuth } from '../../src/auth/AuthContext';
+import { AppText } from '../../src/components/AppText';
 import { AuthScreen } from '../../src/components/AuthScreen';
+import { Button } from '../../src/components/Button';
+import { TextField } from '../../src/components/TextField';
+import { TextLink } from '../../src/components/TextLink';
+import { useLocale } from '../../src/i18n/LocaleProvider';
+import { useTheme } from '../../src/theme/ThemeProvider';
 
 export default function RegisterScreen() {
   const { signInWithToken } = useAuth();
+  const { t } = useLocale();
+  const { colors } = useTheme();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,57 +44,51 @@ export default function RegisterScreen() {
   }
 
   return (
-    <AuthScreen title="Register">
-      <TextInput
+    <AuthScreen title={t('register')}>
+      <TextField
         autoCapitalize="none"
         autoComplete="username"
-        placeholder="Username"
-        style={styles.input}
+        placeholder={t('username')}
+        textContentType="username"
         value={username}
         onChangeText={setUsername}
       />
-      <TextInput
+      <TextField
         autoCapitalize="none"
         autoComplete="email"
         keyboardType="email-address"
-        placeholder="Email"
-        style={styles.input}
+        placeholder={t('email')}
+        textContentType="emailAddress"
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
+      <TextField
         autoCapitalize="none"
         autoComplete="password-new"
-        placeholder="Password"
+        placeholder={t('password')}
         secureTextEntry
-        style={styles.input}
+        textContentType="newPassword"
         value={password}
         onChangeText={setPassword}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <AppText variant="body" style={{ color: colors.pay }}>
+          {error}
+        </AppText>
+      ) : null}
       <Button
-        title={submitting ? 'Creating account…' : 'Register'}
+        title={submitting ? t('creatingAccount') : t('register')}
         onPress={onSubmit}
         disabled={submitting}
       />
       <View style={styles.links}>
-        <Link href="/(auth)/login">Already have an account</Link>
+        <TextLink href="/(auth)/login">{t('alreadyHaveAccount')}</TextLink>
       </View>
     </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  error: {
-    color: '#b00020',
-  },
   links: {
     marginTop: 16,
   },

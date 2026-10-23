@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { Button, StyleSheet, Text, TextInput } from 'react-native';
 
 import { forgotPassword } from '../../src/api/auth';
 import { displayErrorMessage } from '../../src/api/errors';
+import { AppText } from '../../src/components/AppText';
 import { AuthScreen } from '../../src/components/AuthScreen';
+import { Button } from '../../src/components/Button';
+import { TextField } from '../../src/components/TextField';
+import { useLocale } from '../../src/i18n/LocaleProvider';
+import { useTheme } from '../../src/theme/ThemeProvider';
 
 export default function ForgotPasswordScreen() {
+  const { t } = useLocale();
+  const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,44 +32,32 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <AuthScreen title="Forgot password">
-      <Text style={styles.help}>Enter the email address for your account.</Text>
-      <TextInput
+    <AuthScreen title={t('forgotPassword')}>
+      <AppText variant="muted">{t('forgotPasswordHelp')}</AppText>
+      <TextField
         autoCapitalize="none"
         autoComplete="email"
         keyboardType="email-address"
-        placeholder="Email"
-        style={styles.input}
+        placeholder={t('email')}
+        textContentType="emailAddress"
         value={email}
         onChangeText={setEmail}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {message ? <Text style={styles.message}>{message}</Text> : null}
+      {error ? (
+        <AppText variant="body" style={{ color: colors.pay }}>
+          {error}
+        </AppText>
+      ) : null}
+      {message ? (
+        <AppText variant="body" style={{ color: colors.primary }}>
+          {message}
+        </AppText>
+      ) : null}
       <Button
-        title={submitting ? 'Sending…' : 'Send reset link'}
+        title={submitting ? t('sending') : t('sendReset')}
         onPress={onSubmit}
         disabled={submitting}
       />
     </AuthScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  help: {
-    marginBottom: 8,
-    color: '#444',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  error: {
-    color: '#b00020',
-  },
-  message: {
-    color: '#1b5e20',
-  },
-});

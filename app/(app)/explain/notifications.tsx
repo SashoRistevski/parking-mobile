@@ -1,25 +1,13 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { AppText } from '../../../src/components/AppText';
+import { Screen } from '../../../src/components/Screen';
+import { useLocale } from '../../../src/i18n/LocaleProvider';
 
 export default function NotificationsExplainScreen() {
+  const { t } = useLocale();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.body}>
-        A later version will send local notifications when you may have forgotten
-        to pay for parking. Only on-device alerts are planned for now. No
-        notification permission is requested here yet.
-      </Text>
-    </View>
+    <Screen scroll includeTopInset={false}>
+      <AppText>{t('explainNotifications')}</AppText>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  body: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-});

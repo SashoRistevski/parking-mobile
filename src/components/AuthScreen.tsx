@@ -4,9 +4,11 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+
+import { useTheme } from '../theme/ThemeProvider';
+import { AppText } from './AppText';
 
 type AuthScreenProps = {
   title: string;
@@ -14,16 +16,18 @@ type AuthScreenProps = {
 };
 
 export function AuthScreen({ title, children }: AuthScreenProps) {
+  const { colors } = useTheme();
+
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>{title}</Text>
+        <AppText variant="title">{title}</AppText>
         <View style={styles.form}>{children}</View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -33,19 +37,14 @@ export function AuthScreen({ title, children }: AuthScreenProps) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   content: {
     flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '600',
-    marginBottom: 24,
-  },
   form: {
     gap: 12,
+    marginTop: 24,
   },
 });
