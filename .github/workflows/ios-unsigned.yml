@@ -1,0 +1,120 @@
+name: iOS unsigned IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Build variant
+        required: true
+        type: choice
+        options:
+          - dev-client
+          - standalone
+
+jobs:
+  build:
+    runs-on: macos-26
+    permissions:
+      contents: read
+    env:
+      npm_config_registry: https://registry.npmjs.org/
+    steps:
+      - name: Xcode version
+        run: |
+          xcodebuild -version
+          version=$(xcodebuild -version | sed -n '1s/Xcode //p')
+          major=${version%%.*}
+          rest=${version#*.}
+          minor=${rest%%.*}
+          if [ "$major" -lt 26 ] || { [ "$major" -eq 26 ] && [ "$minor" -lt 4 ]; }; then
+            echo "Default Xcode must be 26.4 or newer (found $version)."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+
+      - name: Archive (unsigned)
+        env:
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          if [ "$VARIANT" = "dev-client" ]; then
+            CONFIGURATION=Debug
+          else
+            CONFIGURATION=Release
+          fi
+
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)
+          if [ -z "$WORKSPACE" ]; then
+            echo "No .xcworkspace found under ios/"
+            exit 1
+          fi
+
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['workspace']['schemes'][0])")
+          echo "Using scheme: $SCHEME configuration: $CONFIGURATION"
+
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package IPA
+        env:
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app in archive"
+            exit 1
+          fi
+          APP_NAME=$(basename "$APP_PATH" .app)
+
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+
+          IPA_NAME="${APP_NAME}-${VARIANT}-${SHORT_SHA}.ipa"
+          mkdir -p dist
+          (cd "$RUNNER_TEMP" && zip -r "$GITHUB_WORKSPACE/dist/${IPA_NAME}" Payload)
+          echo "ipa_path=dist/${IPA_NAME}" >> "$GITHUB_OUTPUT"
+        id: package
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ inputs.variant }}-${{ github.sha }}
+          path: dist/*.ipa
+          retention-days: 7
