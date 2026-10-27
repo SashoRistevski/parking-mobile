@@ -431,9 +431,9 @@ export default function MapScreen() {
     });
   }, [activeSession, router]);
 
-  const openPay = useCallback(() => {
+  const payRouteParams = useCallback((): Record<string, string> | null => {
     if (!lastFix) {
-      return;
+      return null;
     }
     const params: Record<string, string> = {
       zoneCode: banner.zoneCode ?? '',
@@ -449,11 +449,30 @@ export default function MapScreen() {
     if (lastFix.accuracyM !== null) {
       params.accuracyM = String(lastFix.accuracyM);
     }
+    return params;
+  }, [banner, lastFix]);
+
+  const openPay = useCallback(() => {
+    const params = payRouteParams();
+    if (!params) {
+      return;
+    }
     router.push({
       pathname: '/(app)/pay',
       params,
     });
-  }, [banner, lastFix, router]);
+  }, [payRouteParams, router]);
+
+  const openPayOverride = useCallback(() => {
+    const params = payRouteParams();
+    if (!params) {
+      return;
+    }
+    router.push({
+      pathname: '/(app)/pay',
+      params: { ...params, override: '1' },
+    });
+  }, [payRouteParams, router]);
 
   const hours = selected ? todayHoursLabel(selected) : null;
   const paidBanner =
@@ -762,7 +781,7 @@ export default function MapScreen() {
                     {sessionPrimaryButton}
                     <Pressable
                       accessibilityRole="button"
-                      onPress={() => undefined}
+                      onPress={openPayOverride}
                       style={[
                         styles.otherZoneButton,
                         {
@@ -819,7 +838,7 @@ export default function MapScreen() {
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => undefined}
+                    onPress={openPayOverride}
                     style={[
                       styles.otherZoneButton,
                       {

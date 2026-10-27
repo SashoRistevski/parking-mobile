@@ -15,6 +15,7 @@ type ZonesResponse = {
     properties?: {
       code?: string;
       name?: string;
+      zone_id?: number;
       today?: ZoneFeature['properties']['today'];
       color?: string;
       operator?: {
@@ -80,6 +81,10 @@ function mapZoneFeatures(raw: ZonesResponse): ZoneFeature[] {
     const name = item.properties?.name;
     if (name) {
       properties.name = name;
+    }
+    const zoneId = item.properties?.zone_id;
+    if (typeof zoneId === 'number' && Number.isFinite(zoneId)) {
+      properties.zone_id = zoneId;
     }
     const color = item.properties?.color;
     if (color) {

@@ -14,6 +14,10 @@ type ScreenProps = {
   scroll?: boolean;
   /** When false, omits top safe-area padding (e.g. screens under a stack header). */
   includeTopInset?: boolean;
+  /** iOS: keep focused inputs above the keyboard when scrolling. */
+  automaticallyAdjustKeyboardInsets?: boolean;
+  /** Extra bottom padding on scroll content (e.g. room above the keyboard). */
+  scrollBottomPadding?: number;
 };
 
 export function Screen({
@@ -21,6 +25,8 @@ export function Screen({
   title,
   scroll = false,
   includeTopInset = true,
+  automaticallyAdjustKeyboardInsets = false,
+  scrollBottomPadding = 0,
 }: ScreenProps) {
   const { colors } = useTheme();
 
@@ -46,8 +52,12 @@ export function Screen({
     >
       {scroll ? (
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            scrollBottomPadding > 0 && { paddingBottom: 24 + scrollBottomPadding },
+          ]}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={automaticallyAdjustKeyboardInsets}
         >
           {content}
         </ScrollView>

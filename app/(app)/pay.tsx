@@ -25,8 +25,11 @@ import {
   type SessionResult,
 } from '../../src/api/sessions';
 import { listVehicles, type Vehicle } from '../../src/api/vehicles';
+import { createZoneReport } from '../../src/api/zoneReports';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
+import { TextField } from '../../src/components/TextField';
+import type { ZoneFeature } from '../../src/detection/zone';
 import { PlateBadge } from '../../src/components/PlateBadge';
 import { TextLink } from '../../src/components/TextLink';
 import { useLocale } from '../../src/i18n/LocaleProvider';
@@ -53,6 +56,82 @@ type CachedZoneInfo = {
   operatorShort?: string;
   paymentModel?: 'prepaid' | 'session';
 };
+
+type OverridePickerOption = {
+  code: string;
+  zoneId?: number;
+  name?: string;
+  operatorShort?: string;
+};
+
+function accuracyForZoneReport(accuracyM: number | null): number | undefined {
+  if (accuracyM === null) {
+    return undefined;
+  }
+  if (accuracyM >= 0 && accuracyM <= 100) {
+    return accuracyM;
+  }
+  return undefined;
+}
+
+function findFeatureByCode(
+  features: ZoneFeature[],
+  code: string,
+): ZoneFeature | undefined {
+  const trimmed = code.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const lower = trimmed.toLowerCase();
+  return features.find((f) => f.properties.code.toLowerCase() === lower);
+}
+
+function buildOverridePickerOptions(
+  features: ZoneFeature[],
+): OverridePickerOption[] {
+  const seen = new Set<string>();
+  const out: OverridePickerOption[] = [];
+  for (const feature of features) {
+    const code = feature.properties.code;
+    const key = code.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    const props = feature.properties;
+    out.push({
+      code,
+      zoneId: props.zone_id,
+      name: props.name,
+      operatorShort: props.operator?.short_name,
+    });
+  }
+  return out;
+}
+
+function overridePickerLabel(option: OverridePickerOption): string {
+  const parts = [option.code];
+  if (option.name?.trim()) {
+    parts.push(option.name.trim());
+  }
+  if (option.operatorShort?.trim()) {
+    parts.push(option.operatorShort.trim());
+  }
+  return parts.join(' · ');
+}
+
+function cachedZoneFromFeature(feature: ZoneFeature): CachedZoneInfo {
+  const props = feature.properties;
+  const model = props.operator?.payment_model;
+  const paymentModel =
+    model === 'prepaid' || model === 'session' ? model : undefined;
+  return {
+    code: props.code,
+    name: props.name,
+    operatorShort: props.operator?.short_name,
+    paymentModel,
+  };
+}
 
 type SessionZoneInfo = {
   code: string | null;
@@ -166,6 +245,7 @@ export default function PayScreen() {
     lat?: string;
     lng?: string;
     accuracyM?: string;
+    override?: string;
   }>();
 
   const zoneCode = paramString(params.zoneCode) ?? '';
@@ -176,6 +256,7 @@ export default function PayScreen() {
   const routeLat = parseOptionalInt(params.lat);
   const routeLng = parseOptionalInt(params.lng);
   const routeAccuracyM = parseOptionalInt(params.accuracyM);
+  const routeOverride = paramString(params.override) === '1';
 
   const [cachedZone, setCachedZone] = useState<CachedZoneInfo | null>(null);
   const [cachedPaymentModel, setCachedPaymentModel] = useState<
@@ -223,6 +304,13 @@ export default function PayScreen() {
   const [openingSms, setOpeningSms] = useState(false);
   const [markingAlreadyPaid, setMarkingAlreadyPaid] = useState(false);
 
+  const [overridePickerVisible, setOverridePickerVisible] =
+    useState(routeOverride);
+  const [overrideCodeInput, setOverrideCodeInput] = useState('');
+  const [overrideWarning, setOverrideWarning] = useState<string | null>(null);
+  const [overrideSubmitting, setOverrideSubmitting] = useState(false);
+  const [pickerFeatures, setPickerFeatures] = useState<ZoneFeature[]>([]);
+
   const idempotencyKeyRef = useRef<string | null>(null);
   const previewSessionIdRef = useRef<number | null>(null);
   const smsMarkedSentRef = useRef(false);
@@ -259,6 +347,11 @@ export default function PayScreen() {
     [vehicles, selectedVehicleId],
   );
 
+  const pickerOptions = useMemo(
+    () => buildOverridePickerOptions(pickerFeatures),
+    [pickerFeatures],
+  );
+
   const canAutoStart =
     coords !== null &&
     !locationDenied &&
@@ -292,12 +385,24 @@ export default function PayScreen() {
   ]);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const cache = await loadZoneCache();
+        setPickerFeatures(cache.features);
+      } catch {
+        // picker may stay empty
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     if (!zoneCode || routePaymentModel !== null) {
       return;
     }
     void (async () => {
       try {
         const cache = await loadZoneCache();
+        setPickerFeatures(cache.features);
         const feature = cache.features.find((f) => f.properties.code === zoneCode);
         if (!feature) {
           return;
@@ -544,6 +649,85 @@ export default function PayScreen() {
     void runStart(chosenZoneId);
   }, [canAutoStart, startSignature, chosenZoneId, runStart]);
 
+  const onConfirmOverride = useCallback(async () => {
+    const trimmed = overrideCodeInput.trim().slice(0, 32);
+    if (!trimmed || !coords) {
+      return;
+    }
+    setOverrideSubmitting(true);
+    setError(null);
+    try {
+      const accuracy = accuracyForZoneReport(coords.accuracyM);
+      await createZoneReport({
+        lat: coords.lat,
+        lng: coords.lng,
+        reported_zone_code: trimmed,
+        reason: 'override',
+        ...(accuracy !== undefined && { accuracy_m: accuracy }),
+        ...(routeZoneId !== undefined && { detected_zone_id: routeZoneId }),
+      });
+
+      const feature = findFeatureByCode(pickerFeatures, trimmed);
+      const zoneId = feature?.properties.zone_id;
+
+      if (!feature || zoneId === undefined) {
+        setOverrideWarning(t('payZoneNotOnMap'));
+        setOverridePickerVisible(false);
+        return;
+      }
+
+      setOverrideWarning(null);
+      const zoneInfo = cachedZoneFromFeature(feature);
+      setCachedZone(zoneInfo);
+      if (zoneInfo.paymentModel) {
+        setCachedPaymentModel(zoneInfo.paymentModel);
+      }
+
+      const overridePaymentModel =
+        zoneInfo.paymentModel ?? routePaymentModel ?? cachedPaymentModel ?? '';
+      const sig =
+        selectedVehicleId !== null
+          ? [
+              selectedVehicleId,
+              selectedHours,
+              zoneId,
+              coords.lat,
+              coords.lng,
+              overridePaymentModel,
+            ].join('|')
+          : '';
+
+      if (preview) {
+        abandonPreviewForReselect();
+      }
+      if (sig) {
+        lastStartSignatureRef.current = sig;
+      }
+      idempotencyKeyRef.current = randomUUID();
+      setChosenZoneId(zoneId);
+      setOverridePickerVisible(false);
+      setOverrideCodeInput('');
+      await runStart(zoneId);
+    } catch (err) {
+      setError(displayErrorMessage(err));
+    } finally {
+      setOverrideSubmitting(false);
+    }
+  }, [
+    overrideCodeInput,
+    coords,
+    routeZoneId,
+    pickerFeatures,
+    preview,
+    abandonPreviewForReselect,
+    runStart,
+    t,
+    selectedVehicleId,
+    selectedHours,
+    routePaymentModel,
+    cachedPaymentModel,
+  ]);
+
   async function onPickCandidate(zone: CandidateZone) {
     if (!coords || selectedVehicleId === null) {
       return;
@@ -787,6 +971,60 @@ export default function PayScreen() {
                 ) : null}
               </View>
             </View>
+          ) : null}
+
+          {!overridePickerVisible ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setOverridePickerVisible(true)}
+              style={styles.otherZoneLink}
+            >
+              <AppText
+                style={[
+                  styles.otherZoneLinkLabel,
+                  { color: colors.primary600 },
+                  interLoaded ? { fontFamily: 'Inter_600SemiBold' } : undefined,
+                ]}
+              >
+                {t('mapOtherZone')}
+              </AppText>
+            </Pressable>
+          ) : null}
+
+          {overridePickerVisible ? (
+            <View style={styles.gap}>
+              <AppText variant="label">{t('payPickZone')}</AppText>
+              {pickerOptions.map((option) => (
+                <Pressable
+                  key={option.code}
+                  accessibilityRole="button"
+                  onPress={() => setOverrideCodeInput(option.code)}
+                  style={[
+                    styles.candidateRow,
+                    { borderColor: colors.border, backgroundColor: colors.card },
+                  ]}
+                >
+                  <AppText>{overridePickerLabel(option)}</AppText>
+                </Pressable>
+              ))}
+              <TextField
+                value={overrideCodeInput}
+                onChangeText={(text) => setOverrideCodeInput(text.slice(0, 32))}
+                placeholder={t('payOverrideCodePlaceholder')}
+                maxLength={32}
+                autoCapitalize="characters"
+                editable={!overrideSubmitting}
+              />
+              <Button
+                title={t('payUseThisZone')}
+                disabled={overrideSubmitting || !overrideCodeInput.trim()}
+                onPress={() => void onConfirmOverride()}
+              />
+            </View>
+          ) : null}
+
+          {overrideWarning ? (
+            <AppText variant="muted">{overrideWarning}</AppText>
           ) : null}
 
           {effectivePaymentModel === 'session' ? (
@@ -1225,5 +1463,11 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     flex: 1,
+  },
+  otherZoneLink: {
+    alignSelf: 'flex-start',
+  },
+  otherZoneLinkLabel: {
+    fontSize: 15,
   },
 });

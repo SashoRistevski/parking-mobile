@@ -71,6 +71,10 @@ export default function AppLayout() {
       />
       <Stack.Screen name="drive-test" options={{ title: 'Drive test' }} />
       <Stack.Screen
+        name="report-zone"
+        options={{ title: t('reportWrongZoneTitle') }}
+      />
+      <Stack.Screen
         name="pay"
         options={{
           presentation: 'transparentModal',

@@ -14,6 +14,7 @@ export type ZoneFeatureProperties = {
   name?: string;
   color?: string;
   operator?: ZoneOperator;
+  zone_id?: number;
 };
 
 export type ZonePolygonGeometry = {
