@@ -15,7 +15,13 @@ import { FontProvider } from '../src/theme/FontContext';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 
 function RootNavigator() {
-  const { token, user, isLoading } = useAuth();
+  const {
+    token,
+    user,
+    isLoading,
+    pendingPostRegisterSetup,
+    clearPostRegisterSetup,
+  } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const { colors } = useTheme();
@@ -35,9 +41,22 @@ function RootNavigator() {
     }
 
     if (token && user && inAuthGroup) {
-      router.replace('/(app)');
+      if (pendingPostRegisterSetup) {
+        clearPostRegisterSetup();
+        router.replace('/(app)/setup');
+      } else {
+        router.replace('/(app)');
+      }
     }
-  }, [token, user, isLoading, segments, router]);
+  }, [
+    token,
+    user,
+    isLoading,
+    segments,
+    router,
+    pendingPostRegisterSetup,
+    clearPostRegisterSetup,
+  ]);
 
   if (isLoading) {
     return (

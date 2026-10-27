@@ -1,3 +1,4 @@
+import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { useAuth } from '../../src/auth/AuthContext';
@@ -13,7 +14,7 @@ export default function HomeScreen() {
   const { locale, setLocale, t } = useLocale();
 
   return (
-    <Screen title={t('appName')}>
+    <Screen title={t('appName')} scroll>
       <View style={styles.localeRow}>
         <Button
           title={t('macedonian')}
@@ -46,6 +47,16 @@ export default function HomeScreen() {
       </View>
 
       <Button title={t('logOut')} onPress={() => void signOut()} />
+
+      <View style={styles.footer}>
+        <TextLink href="/(app)/map">{t('mapLink')}</TextLink>
+        <TextLink href="/(app)/vehicles/index">{t('vehicles')}</TextLink>
+        <Link href="/(app)/drive-test" style={styles.driveTestWrap}>
+          <AppText variant="muted" style={styles.driveTestLink}>
+            Drive test
+          </AppText>
+        </Link>
+      </View>
     </Screen>
   );
 }
@@ -68,5 +79,17 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     marginBottom: 4,
+  },
+  footer: {
+    marginTop: 'auto',
+    paddingTop: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
+  driveTestWrap: {
+    alignItems: 'center',
+  },
+  driveTestLink: {
+    textDecorationLine: 'underline',
   },
 });

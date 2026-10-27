@@ -1,11 +1,40 @@
-import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 import { useLocale } from '../../src/i18n/LocaleProvider';
 import { useTheme } from '../../src/theme/ThemeProvider';
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
 export default function AppLayout() {
   const { t } = useLocale();
   const { colors } = useTheme();
+  const router = useRouter();
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data;
+        const zoneCode =
+          data && typeof data.zoneCode === 'string' ? data.zoneCode : null;
+        if (zoneCode) {
+          router.push({
+            pathname: '/(app)/pay',
+            params: { zoneCode },
+          });
+        }
+      },
+    );
+    return () => subscription.remove();
+  }, [router]);
 
   return (
     <Stack
@@ -20,6 +49,13 @@ export default function AppLayout() {
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
+        name="setup"
+        options={{
+          title: t('setupTitle'),
+          headerBackVisible: false,
+        }}
+      />
+      <Stack.Screen
         name="explain/location"
         options={{ title: t('location') }}
       />
@@ -27,6 +63,21 @@ export default function AppLayout() {
       <Stack.Screen
         name="explain/notifications"
         options={{ title: t('notifications') }}
+      />
+      <Stack.Screen name="map" options={{ headerShown: false }} />
+      <Stack.Screen name="drive-test" options={{ title: 'Drive test' }} />
+      <Stack.Screen name="pay" options={{ title: t('payTitle') }} />
+      <Stack.Screen
+        name="vehicles/index"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="vehicles/new"
+        options={{ title: t('addVehicle') }}
+      />
+      <Stack.Screen
+        name="vehicles/[id]"
+        options={{ title: t('editVehicle') }}
       />
     </Stack>
   );

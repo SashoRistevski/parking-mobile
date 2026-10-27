@@ -35,7 +35,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <AuthScreen title={t('logIn')}>
+    <AuthScreen showAppName appName={t('appName')} title={t('logIn')}>
       <TextField
         autoCapitalize="none"
         autoComplete="email"

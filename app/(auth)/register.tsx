@@ -13,7 +13,7 @@ import { useLocale } from '../../src/i18n/LocaleProvider';
 import { useTheme } from '../../src/theme/ThemeProvider';
 
 export default function RegisterScreen() {
-  const { signInWithToken } = useAuth();
+  const { signInWithToken, markPostRegisterSetup } = useAuth();
   const { t } = useLocale();
   const { colors } = useTheme();
   const [username, setUsername] = useState('');
@@ -32,6 +32,7 @@ export default function RegisterScreen() {
         password,
       );
       await signInWithToken(result.accessToken);
+      markPostRegisterSetup();
     } catch (err) {
       setError(
         displayErrorMessage(err, 'email') ||
@@ -44,7 +45,7 @@ export default function RegisterScreen() {
   }
 
   return (
-    <AuthScreen title={t('register')}>
+    <AuthScreen showBrandLogo title={t('register')}>
       <TextField
         autoCapitalize="none"
         autoComplete="username"

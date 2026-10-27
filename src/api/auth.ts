@@ -57,3 +57,15 @@ export async function getMe(): Promise<MeResponse> {
     auth: true,
   });
 }
+
+export type UpdateMeInput = {
+  phone_number: string | null;
+};
+
+export async function updateMe(body: UpdateMeInput): Promise<MeResponse> {
+  return apiRequest<MeResponse>('/me', {
+    method: 'PATCH',
+    body,
+    auth: true,
+  });
+}

@@ -13,7 +13,7 @@ export function TextLink({ children, style, ...rest }: TextLinkProps) {
 
   return (
     <Link {...rest} style={style}>
-      <AppText variant="body" style={[styles.link, { color: colors.primary }]}>
+      <AppText variant="body" style={[styles.link, { color: colors.primary600 }]}>
         {children}
       </AppText>
     </Link>

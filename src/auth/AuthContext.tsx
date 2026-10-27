@@ -22,6 +22,9 @@ type AuthContextValue = {
   token: string | null;
   user: User | null;
   isLoading: boolean;
+  pendingPostRegisterSetup: boolean;
+  markPostRegisterSetup: () => void;
+  clearPostRegisterSetup: () => void;
   signInWithToken: (accessToken: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -32,7 +35,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingPostRegisterSetup, setPendingPostRegisterSetup] =
+    useState(false);
   const tokenRef = useRef<string | null>(null);
+
+  const markPostRegisterSetup = useCallback(() => {
+    setPendingPostRegisterSetup(true);
+  }, []);
+
+  const clearPostRegisterSetup = useCallback(() => {
+    setPendingPostRegisterSetup(false);
+  }, []);
 
   const clearSession = useCallback(async () => {
     tokenRef.current = null;
@@ -119,10 +132,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       user,
       isLoading,
+      pendingPostRegisterSetup,
+      markPostRegisterSetup,
+      clearPostRegisterSetup,
       signInWithToken,
       signOut,
     }),
-    [token, user, isLoading, signInWithToken, signOut],
+    [
+      token,
+      user,
+      isLoading,
+      pendingPostRegisterSetup,
+      markPostRegisterSetup,
+      clearPostRegisterSetup,
+      signInWithToken,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

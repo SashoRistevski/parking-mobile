@@ -1,8 +1,8 @@
 {
   "ios": {
-    "CFBundleDisplayName": "Паркирај"
+    "CFBundleDisplayName": "Smart Park"
   },
   "android": {
-    "app_name": "Паркирај"
+    "app_name": "Smart Park"
   }
 }
