@@ -5,6 +5,10 @@ import { useEffect } from 'react';
 import { useLocale } from '../../src/i18n/LocaleProvider';
 import { useTheme } from '../../src/theme/ThemeProvider';
 
+export const unstable_settings = {
+  initialRouteName: '(tabs)',
+};
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -47,6 +51,7 @@ export default function AppLayout() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
         name="setup"
@@ -64,13 +69,17 @@ export default function AppLayout() {
         name="explain/notifications"
         options={{ title: t('notifications') }}
       />
-      <Stack.Screen name="map" options={{ headerShown: false }} />
       <Stack.Screen name="drive-test" options={{ title: 'Drive test' }} />
-      <Stack.Screen name="pay" options={{ title: t('payTitle') }} />
       <Stack.Screen
-        name="vehicles/index"
-        options={{ headerShown: false }}
+        name="pay"
+        options={{
+          presentation: 'transparentModal',
+          animation: 'fade',
+          headerShown: false,
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
       />
+      <Stack.Screen name="session" options={{ headerShown: false }} />
       <Stack.Screen
         name="vehicles/new"
         options={{ title: t('addVehicle') }}

@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 
+import { useInterLoaded } from '../theme/FontContext';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
 
@@ -20,6 +21,8 @@ type AuthScreenProps = {
   showBrandLogo?: boolean;
   showAppName?: boolean;
   appName?: string;
+  topSlot?: ReactNode;
+  alignTop?: boolean;
 };
 
 export function AuthScreen({
@@ -28,8 +31,11 @@ export function AuthScreen({
   showBrandLogo = false,
   showAppName = false,
   appName,
+  topSlot,
+  alignTop = false,
 }: AuthScreenProps) {
   const { colors } = useTheme();
+  const interLoaded = useInterLoaded();
 
   return (
     <KeyboardAvoidingView
@@ -37,27 +43,46 @@ export function AuthScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          alignTop ? styles.contentTop : null,
+        ]}
         keyboardShouldPersistTaps="handled"
       >
+        {topSlot ? <View style={styles.topSlot}>{topSlot}</View> : null}
         {showBrandLogo ? (
-          <Image
-            accessibilityLabel={LOGO_ACCESSIBILITY_LABEL}
-            accessible
-            resizeMode="contain"
-            source={require('../../assets/smartpark-logo.png')}
-            style={styles.logo}
-          />
+          <View
+            style={[
+              styles.logoTile,
+              { borderColor: colors.border },
+            ]}
+          >
+            <Image
+              accessibilityLabel={LOGO_ACCESSIBILITY_LABEL}
+              accessible
+              resizeMode="contain"
+              source={require('../../assets/smartpark-logo.png')}
+              style={styles.logo}
+            />
+          </View>
         ) : null}
         {showAppName && appName ? (
           <AppText variant="title" style={styles.appName}>
             {appName}
           </AppText>
         ) : null}
-        <AppText variant="title" style={showBrandLogo ? styles.titleBelowLogo : undefined}>
+        <AppText
+          variant="title"
+          style={[
+            showBrandLogo ? styles.titleBelowLogo : undefined,
+            alignTop && interLoaded ? { fontFamily: 'Inter_700Bold' } : undefined,
+          ]}
+        >
           {title}
         </AppText>
-        <View style={styles.form}>{children}</View>
+        <View style={[styles.form, alignTop ? styles.formTop : null]}>
+          {children}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -72,11 +97,25 @@ const styles = StyleSheet.create({
     padding: 24,
     justifyContent: 'center',
   },
+  contentTop: {
+    justifyContent: 'flex-start',
+    paddingTop: 64,
+  },
+  topSlot: {
+    alignItems: 'flex-end',
+    marginBottom: 22,
+  },
+  logoTile: {
+    alignSelf: 'center',
+    marginBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+  },
   logo: {
     width: 168,
     height: 150,
-    alignSelf: 'center',
-    marginBottom: 14,
   },
   appName: {
     textAlign: 'center',
@@ -89,5 +128,9 @@ const styles = StyleSheet.create({
   form: {
     gap: 12,
     marginTop: 24,
+  },
+  formTop: {
+    gap: 14,
+    marginTop: 14,
   },
 });

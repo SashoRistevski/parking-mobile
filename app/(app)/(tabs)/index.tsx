@@ -1,35 +1,60 @@
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
-  Platform,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
-import MapView, { Polygon, type LatLng } from 'react-native-maps';
+import MapView, { Marker, Polygon, type LatLng } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { postLocate } from '../../src/api/locate';
-import { listVehicles, type Vehicle } from '../../src/api/vehicles';
-import { AppText } from '../../src/components/AppText';
-import { Button } from '../../src/components/Button';
-import { Card } from '../../src/components/Card';
+import { postLocate } from '../../../src/api/locate';
+import {
+  getActiveSessions,
+  type ParkingSession,
+} from '../../../src/api/sessions';
+import { listVehicles, type Vehicle } from '../../../src/api/vehicles';
+import { AppText } from '../../../src/components/AppText';
+import { Card } from '../../../src/components/Card';
 import {
   paidNow,
   zoneAt,
   type Holiday,
   type ZoneFeature,
-} from '../../src/detection/zone';
-import { useLocale } from '../../src/i18n/LocaleProvider';
-import { useInterLoaded } from '../../src/theme/FontContext';
-import { useTheme } from '../../src/theme/ThemeProvider';
-import { loadZoneCache, paidEndsAt } from '../../src/zones/cache';
+} from '../../../src/detection/zone';
+import { useLocale } from '../../../src/i18n/LocaleProvider';
+import { useInterLoaded } from '../../../src/theme/FontContext';
+import { useTheme } from '../../../src/theme/ThemeProvider';
+import { loadZoneCache, paidEndsAt } from '../../../src/zones/cache';
 
 const SKOPJE = { latitude: 41.998, longitude: 21.425 };
 const LOCATE_CACHE_MAX_MS = 24 * 60 * 60 * 1000;
 const MAP_DELTA = 0.06;
+const TAB_BAR_HEIGHT = 64;
+
+function ringCentroid(coordinates: LatLng[]): LatLng {
+  let lat = 0;
+  let lng = 0;
+  for (const point of coordinates) {
+    lat += point.latitude;
+    lng += point.longitude;
+  }
+  const count = coordinates.length || 1;
+  return { latitude: lat / count, longitude: lng / count };
+}
+
+function polygonFillColor(
+  isCurrent: boolean,
+  primary: string,
+  primarySoft: string,
+): string {
+  if (primary.startsWith('#') && primary.length === 7) {
+    return isCurrent ? `${primary}33` : `${primary}12`;
+  }
+  return primarySoft;
+}
 
 type RingSpec = {
   feature: ZoneFeature;
@@ -126,7 +151,7 @@ function MyLocationIcon({ color }: { color: string }) {
 
 export default function MapScreen() {
   const { t } = useLocale();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const interLoaded = useInterLoaded();
@@ -156,6 +181,9 @@ export default function MapScreen() {
   } | null>(null);
 
   const [defaultVehicle, setDefaultVehicle] = useState<Vehicle | null>(null);
+  const [activeSession, setActiveSession] = useState<ParkingSession | null>(
+    null,
+  );
 
   const featuresRef = useRef(features);
   const holidaysRef = useRef(holidays);
@@ -167,13 +195,6 @@ export default function MapScreen() {
   }, [features, holidays]);
 
   const rings = useMemo(() => collectRings(features), [features]);
-
-  const fillColor = useMemo(() => {
-    if (colors.primary.startsWith('#') && colors.primary.length === 7) {
-      return `${colors.primary}33`;
-    }
-    return colors.primarySoft;
-  }, [colors.primary, colors.primarySoft]);
 
   useEffect(() => {
     void (async () => {
@@ -196,6 +217,19 @@ export default function MapScreen() {
       }
     })();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void (async () => {
+        try {
+          const active = await getActiveSessions();
+          setActiveSession(active[0] ?? null);
+        } catch {
+          // leave map as it is
+        }
+      })();
+    }, []),
+  );
 
   useEffect(() => {
     void (async () => {
@@ -387,6 +421,16 @@ export default function MapScreen() {
     );
   }, [lastFix]);
 
+  const openSession = useCallback(() => {
+    if (!activeSession) {
+      return;
+    }
+    router.push({
+      pathname: '/(app)/session',
+      params: { sessionId: String(activeSession.id) },
+    });
+  }, [activeSession, router]);
+
   const openPay = useCallback(() => {
     if (!lastFix) {
       return;
@@ -424,6 +468,34 @@ export default function MapScreen() {
         vehicleDetailLine(defaultVehicle),
       )
     : null;
+  const sessionButtonLabel = activeSession
+    ? activeSession.payment_model === 'prepaid'
+      ? t('mapSessionExtend')
+      : t('mapSessionStop')
+    : null;
+  const sessionPrimaryButton = activeSession ? (
+    <Pressable
+      accessibilityRole="button"
+      onPress={openSession}
+      style={[
+        styles.payPrimaryButton,
+        { backgroundColor: colors.primary },
+      ]}
+    >
+      <AppText
+        style={[
+          styles.payPrimaryLabel,
+          {
+            color: isDark ? colors.textOnPrimary : '#FFFFFF',
+            fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
+            fontWeight: '700',
+          },
+        ]}
+      >
+        {sessionButtonLabel}
+      </AppText>
+    </Pressable>
+  ) : null;
   const chromeShadow = {
     shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
@@ -444,17 +516,77 @@ export default function MapScreen() {
         }}
         showsUserLocation={locationGranted}
       >
-        {rings.map((spec) => (
-          <Polygon
-            key={`${spec.featureIndex}-${spec.ringIndex}`}
-            coordinates={spec.coordinates}
-            fillColor={fillColor}
-            strokeColor={colors.primary}
-            strokeWidth={1}
-            tappable
-            onPress={() => setSelected(spec.feature)}
-          />
-        ))}
+        {rings.map((spec) => {
+          const code = spec.feature.properties.code;
+          const isCurrent =
+            banner.zoneCode !== null && code === banner.zoneCode;
+          const strokeColor = isCurrent
+            ? colors.primary
+            : isDark
+              ? colors.primary
+              : colors.primary600;
+          return (
+            <Polygon
+              key={`${spec.featureIndex}-${spec.ringIndex}`}
+              coordinates={spec.coordinates}
+              fillColor={polygonFillColor(
+                isCurrent,
+                colors.primary,
+                colors.primarySoft,
+              )}
+              strokeColor={strokeColor}
+              strokeWidth={isCurrent ? 3 : 2}
+              lineDashPattern={isCurrent ? undefined : [6, 5]}
+              tappable
+              onPress={() => setSelected(spec.feature)}
+            />
+          );
+        })}
+        {rings.map((spec) => {
+          const code = spec.feature.properties.code;
+          const isCurrent =
+            banner.zoneCode !== null && code === banner.zoneCode;
+          const labelBg = isCurrent ? colors.primary : colors.card;
+          const labelText = isCurrent
+            ? isDark
+              ? colors.textOnPrimary
+              : '#FFFFFF'
+            : isDark
+              ? colors.text
+              : colors.primary;
+          return (
+            <Marker
+              key={`label-${spec.featureIndex}-${spec.ringIndex}`}
+              coordinate={ringCentroid(spec.coordinates)}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <View
+                style={[
+                  styles.zoneLabel,
+                  {
+                    backgroundColor: labelBg,
+                    borderWidth: isCurrent ? 0 : 1,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <AppText
+                  style={[
+                    styles.zoneLabelText,
+                    {
+                      color: labelText,
+                      fontFamily: interLoaded ? 'Inter_700Bold' : undefined,
+                      fontWeight: '700',
+                    },
+                  ]}
+                >
+                  {code}
+                </AppText>
+              </View>
+            </Marker>
+          );
+        })}
       </MapView>
 
       {selected ? (
@@ -488,19 +620,30 @@ export default function MapScreen() {
         <View
           style={[
             styles.brandPill,
-            { backgroundColor: colors.card },
-            chromeShadow,
+            { backgroundColor: isDark ? colors.card : '#FFFFFF' },
+            !isDark && chromeShadow,
           ]}
         >
-          <Image
-            source={require('../../assets/icon.png')}
-            style={styles.brandMark}
-            accessibilityIgnoresInvertColors
-          />
+          {isDark ? (
+            <View style={styles.brandMarkDarkWrap}>
+              <Image
+                source={require('../../../assets/smartpark-mark.png')}
+                style={styles.brandMarkDarkImage}
+                accessibilityIgnoresInvertColors
+              />
+            </View>
+          ) : (
+            <Image
+              source={require('../../../assets/smartpark-mark.png')}
+              style={styles.brandMark}
+              accessibilityIgnoresInvertColors
+            />
+          )}
           <AppText
             style={[
               styles.brandTitle,
               {
+                color: isDark ? colors.text : colors.primary,
                 fontFamily: interLoaded ? 'Inter_700Bold' : undefined,
                 fontWeight: '800',
               },
@@ -515,22 +658,34 @@ export default function MapScreen() {
           onPress={recenterOnFix}
           style={[
             styles.locateButton,
-            { backgroundColor: colors.card },
-            chromeShadow,
+            { backgroundColor: isDark ? colors.card : '#FFFFFF' },
+            !isDark && chromeShadow,
           ]}
         >
-          <MyLocationIcon color={colors.text} />
+          <MyLocationIcon
+            color={isDark ? colors.text : colors.primary}
+          />
         </Pressable>
       </View>
 
       <View
         style={[
           styles.bannerWrap,
-          { bottom: Platform.select({ ios: insets.bottom + 16, default: 16 }) },
+          { bottom: TAB_BAR_HEIGHT + insets.bottom + 12 },
         ]}
         pointerEvents="box-none"
       >
-        <Card style={paidBanner ? styles.paidBanner : styles.banner}>
+        <View
+          style={[
+            styles.statusCard,
+            {
+              backgroundColor: isDark ? colors.card : '#FFFFFF',
+              borderColor: colors.border,
+              borderWidth: isDark ? 1 : 0,
+            },
+            !isDark && chromeShadow,
+          ]}
+        >
           {cacheOffline ? (
             <AppText variant="label">{t('mapOffline')}</AppText>
           ) : null}
@@ -569,6 +724,7 @@ export default function MapScreen() {
                     style={[
                       styles.zoneCodeText,
                       {
+                        color: colors.primary,
                         fontFamily: interLoaded ? 'Inter_700Bold' : undefined,
                         fontWeight: '800',
                       },
@@ -594,19 +750,105 @@ export default function MapScreen() {
                     </AppText>
                   ) : null}
                   {operatorLine ? (
-                    <AppText variant="muted">{operatorLine}</AppText>
+                    <AppText variant="muted" style={styles.operatorLine}>
+                      {operatorLine}
+                    </AppText>
                   ) : null}
                 </View>
               </View>
-              {lastFix ? (
-                <Button
-                  title={t('mapPayForParking')}
-                  variant="primary"
-                  onPress={openPay}
-                />
+              {activeSession ? (
+                lastFix ? (
+                  <View style={styles.payRow}>
+                    {sessionPrimaryButton}
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => undefined}
+                      style={[
+                        styles.otherZoneButton,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: isDark ? 'transparent' : '#FFFFFF',
+                        },
+                      ]}
+                    >
+                      <AppText
+                        style={[
+                          styles.otherZoneLabel,
+                          {
+                            color: isDark ? colors.text : colors.primary,
+                            fontFamily: interLoaded
+                              ? 'Inter_500Medium'
+                              : undefined,
+                            fontWeight: '600',
+                          },
+                        ]}
+                      >
+                        {t('mapOtherZone')}
+                      </AppText>
+                    </Pressable>
+                  </View>
+                ) : (
+                  sessionPrimaryButton
+                )
+              ) : lastFix ? (
+                <View style={styles.payRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={openPay}
+                    style={[
+                      styles.payPrimaryButton,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <AppText
+                      style={[
+                        styles.payPrimaryLabel,
+                        {
+                          color: isDark
+                            ? colors.textOnPrimary
+                            : '#FFFFFF',
+                          fontFamily: interLoaded
+                            ? 'Inter_600SemiBold'
+                            : undefined,
+                          fontWeight: '700',
+                        },
+                      ]}
+                    >
+                      {t('mapPayForParking')}
+                    </AppText>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => undefined}
+                    style={[
+                      styles.otherZoneButton,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: isDark ? 'transparent' : '#FFFFFF',
+                      },
+                    ]}
+                  >
+                    <AppText
+                      style={[
+                        styles.otherZoneLabel,
+                        {
+                          color: isDark ? colors.text : colors.primary,
+                          fontFamily: interLoaded
+                            ? 'Inter_500Medium'
+                            : undefined,
+                          fontWeight: '600',
+                        },
+                      ]}
+                    >
+                      {t('mapOtherZone')}
+                    </AppText>
+                  </Pressable>
+                </View>
               ) : null}
               {vehicleLine ? (
-                <AppText variant="muted">{vehicleLine}</AppText>
+                <AppText variant="muted" style={styles.vehicleLine}>
+                  {vehicleLine}
+                </AppText>
               ) : null}
             </>
           ) : banner.insideZone ? (
@@ -615,11 +857,19 @@ export default function MapScreen() {
               <AppText>
                 {[banner.zoneCode, banner.zoneName].filter(Boolean).join(' · ')}
               </AppText>
+              {activeSession ? (
+                <View style={styles.payRow}>{sessionPrimaryButton}</View>
+              ) : null}
             </>
           ) : (
-            <AppText variant="label">{t('mapNoPayHere')}</AppText>
+            <>
+              <AppText variant="label">{t('mapNoPayHere')}</AppText>
+              {activeSession ? (
+                <View style={styles.payRow}>{sessionPrimaryButton}</View>
+              ) : null}
+            </>
           )}
-        </Card>
+        </View>
       </View>
     </View>
   );
@@ -652,7 +902,18 @@ const styles = StyleSheet.create({
   brandMark: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+  },
+  brandMarkDarkWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandMarkDarkImage: {
+    width: 24,
+    height: 24,
   },
   brandTitle: {
     fontSize: 17,
@@ -688,11 +949,55 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
   },
-  banner: {
-    gap: 4,
-  },
-  paidBanner: {
+  statusCard: {
+    borderRadius: 24,
+    padding: 18,
     gap: 14,
+  },
+  zoneLabel: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  zoneLabelText: {
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  operatorLine: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  payRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  payPrimaryButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payPrimaryLabel: {
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  otherZoneButton: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otherZoneLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  vehicleLine: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   statusRow: {
     flexDirection: 'row',
@@ -754,5 +1059,6 @@ const styles = StyleSheet.create({
   },
   detailCard: {
     gap: 8,
+    borderRadius: 24,
   },
 });

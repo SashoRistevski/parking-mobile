@@ -1,5 +1,5 @@
-import { Link, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -7,25 +7,25 @@ import {
   View,
 } from 'react-native';
 
-import { displayErrorMessage } from '../../../src/api/errors';
+import { displayErrorMessage } from '../../../../src/api/errors';
 import {
   listVehicles,
   setDefaultVehicle,
   type Vehicle,
-} from '../../../src/api/vehicles';
-import { AppText } from '../../../src/components/AppText';
-import { Card } from '../../../src/components/Card';
-import { PlateBadge } from '../../../src/components/PlateBadge';
-import { Screen } from '../../../src/components/Screen';
-import { TextLink } from '../../../src/components/TextLink';
-import { useInterLoaded } from '../../../src/theme/FontContext';
-import { type TranslationKey } from '../../../src/i18n/catalogs';
-import { useLocale } from '../../../src/i18n/LocaleProvider';
-import { useTheme } from '../../../src/theme/ThemeProvider';
+} from '../../../../src/api/vehicles';
+import { AppText } from '../../../../src/components/AppText';
+import { Card } from '../../../../src/components/Card';
+import { PlateBadge } from '../../../../src/components/PlateBadge';
+import { Screen } from '../../../../src/components/Screen';
+import { TextLink } from '../../../../src/components/TextLink';
+import { useInterLoaded } from '../../../../src/theme/FontContext';
+import { type TranslationKey } from '../../../../src/i18n/catalogs';
+import { useLocale } from '../../../../src/i18n/LocaleProvider';
+import { useTheme } from '../../../../src/theme/ThemeProvider';
 
 export default function VehiclesListScreen() {
   const { t } = useLocale();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const interLoaded = useInterLoaded();
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -35,51 +35,58 @@ export default function VehiclesListScreen() {
     null,
   );
 
-  const loadVehicles = useCallback(async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const data = await listVehicles();
-      setVehicles(data);
-    } catch (err) {
-      setError(displayErrorMessage(err));
-      setVehicles([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const initialLoadDoneRef = useRef(false);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      setError(null);
-      setLoading(true);
+  const loadVehicles = useCallback(
+    async (options?: { reportError?: boolean; isActive?: () => boolean }) => {
+      const stillActive = () => options?.isActive?.() ?? true;
+      const isInitial = !initialLoadDoneRef.current;
+      if (isInitial && stillActive()) {
+        setError(null);
+        setLoading(true);
+      }
       try {
         const data = await listVehicles();
-        if (active) {
-          setVehicles(data);
+        if (!stillActive()) {
+          return;
         }
+        setVehicles(data);
+        setError(null);
       } catch (err) {
-        if (active) {
+        if (!stillActive()) {
+          return;
+        }
+        if (isInitial) {
           setError(displayErrorMessage(err));
           setVehicles([]);
+        } else if (options?.reportError) {
+          setError(displayErrorMessage(err));
         }
       } finally {
-        if (active) {
+        if (stillActive() && isInitial) {
           setLoading(false);
+          initialLoadDoneRef.current = true;
         }
       }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+    },
+    [],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void loadVehicles({ isActive: () => active });
+      return () => {
+        active = false;
+      };
+    }, [loadVehicles]),
+  );
 
   async function onSetDefault(id: number) {
     setSettingDefaultId(id);
     try {
       await setDefaultVehicle(id);
-      await loadVehicles();
+      await loadVehicles({ reportError: true });
     } catch (err) {
       setError(displayErrorMessage(err));
     } finally {
@@ -99,37 +106,30 @@ export default function VehiclesListScreen() {
             styles.screenTitle,
             {
               color: colors.text,
-              fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
+              fontFamily: interLoaded ? 'Inter_700Bold' : undefined,
               fontWeight: '800',
             },
           ]}
         >
           {t('vehicles')}
         </AppText>
-        <Link href="/(app)/vehicles/new" asChild>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('addVehicle')}
-            style={({ pressed }) => [
-              styles.addButton,
-              {
-                backgroundColor: colors.primary,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('addVehicle')}
+          onPress={() => router.push('/(app)/vehicles/new')}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+        >
+          <AppText
+            style={{
+              color: isDark ? colors.textOnPrimary : '#FFFFFF',
+              fontSize: 22,
+              lineHeight: 24,
+              fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
+            }}
           >
-            <AppText
-              style={{
-                color: colors.textOnPrimary,
-                fontSize: 22,
-                lineHeight: 24,
-                fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
-              }}
-            >
-              +
-            </AppText>
-          </Pressable>
-        </Link>
+            +
+          </AppText>
+        </Pressable>
       </View>
 
       {loading ? (
@@ -189,6 +189,13 @@ type VehicleCardProps = {
   interLoaded: boolean;
 };
 
+function vehicleDisplayName(vehicle: Vehicle): string {
+  return [vehicle.nickname, vehicle.vehicle_model, vehicle.vehicle_make]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .join(' · ');
+}
+
 function VehicleCard({
   vehicle,
   settingDefault,
@@ -199,8 +206,13 @@ function VehicleCard({
   colors,
   interLoaded,
 }: VehicleCardProps) {
+  const { isDark } = useTheme();
   const isDefault = vehicle.is_default;
-  const makeModel = `${vehicle.vehicle_make} · ${vehicle.vehicle_model}`;
+  const displayName = vehicleDisplayName(vehicle);
+  const pocHoursLine =
+    typeof vehicle.default_park_time === 'number'
+      ? formatPocHours(vehicle.default_park_time)
+      : null;
 
   return (
     <Pressable
@@ -212,7 +224,10 @@ function VehicleCard({
         style={{
           ...styles.vehicleCard,
           ...(isDefault
-            ? { borderWidth: 2, borderColor: colors.primary600 }
+            ? {
+                borderWidth: 2,
+                borderColor: isDark ? colors.primary : colors.primary600,
+              }
             : { borderWidth: 0 }),
         }}
       >
@@ -255,7 +270,7 @@ function VehicleCard({
                 style={[
                   styles.setDefaultText,
                   {
-                    color: colors.text,
+                    color: isDark ? colors.text : colors.primary,
                     fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
                   },
                 ]}
@@ -265,24 +280,30 @@ function VehicleCard({
             </Pressable>
           )}
         </View>
-        <View style={styles.cardBottomRow}>
-          <AppText
-            variant="body"
-            style={[
-              styles.makeModel,
-              {
-                fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
-              },
-            ]}
-          >
-            {makeModel}
-          </AppText>
-          {typeof vehicle.default_park_time === 'number' ? (
-            <AppText variant="muted" style={styles.pocHours}>
-              {formatPocHours(vehicle.default_park_time)}
-            </AppText>
-          ) : null}
-        </View>
+        {displayName || pocHoursLine ? (
+          <View style={styles.cardBottomRow}>
+            {displayName ? (
+              <AppText
+                variant="body"
+                style={[
+                  styles.makeModel,
+                  {
+                    fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
+                  },
+                ]}
+              >
+                {displayName}
+              </AppText>
+            ) : (
+              <View style={styles.makeModel} />
+            )}
+            {pocHoursLine ? (
+              <AppText variant="muted" style={styles.pocHours}>
+                {pocHoursLine}
+              </AppText>
+            ) : null}
+          </View>
+        ) : null}
       </Card>
     </Pressable>
   );
