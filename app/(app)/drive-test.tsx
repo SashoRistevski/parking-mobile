@@ -11,7 +11,18 @@ import {
   initialDetection,
   stepDetection,
   type DetectionSnapshot,
+  type DetectionState,
 } from '../../src/detection/machine';
+import {
+  REMINDER_CATEGORY_ID,
+  subscribeReminderLog,
+} from '../../src/detection/reminderActions';
+import {
+  DEFAULT_SECOND_REMINDER_MINUTES,
+  planStopReminders,
+  reminderDeliveries,
+} from '../../src/detection/reminders';
+import { useLocale } from '../../src/i18n/LocaleProvider';
 import { paidNow, zoneAt, type Holiday, type ZoneFeature } from '../../src/detection/zone';
 import {
   formatSampleLogLine,
@@ -29,6 +40,13 @@ import { Screen } from '../../src/components/Screen';
 const ON_SCREEN_LOG_LIMIT = 200;
 const MIN_CADENCE_GAP_MS = 3_000;
 const SESSION_POLL_MS = 60_000;
+
+const REMINDER_CANCEL_STATES: DetectionState[] = [
+  'DRIVING',
+  'PAID',
+  'LEFT',
+  'DISMISSED',
+];
 
 type PermissionFlags = {
   location: boolean | null;
@@ -61,6 +79,7 @@ function paidForZone(
 
 export default function DriveTestScreen() {
   useKeepAwake();
+  const { locale } = useLocale();
 
   const [permissionFlags, setPermissionFlags] = useState<PermissionFlags>({
     location: null,
@@ -86,11 +105,121 @@ export default function DriveTestScreen() {
     speedKmh: number | null;
     accuracyM: number | null;
   } | null>(null);
+  const reminderIdentifiersRef = useRef<string[]>([]);
+  const reminderZoneRef = useRef<string | null>(null);
 
   const appendLog = useCallback((line: string) => {
     logRef.current = [...logRef.current, line];
     setLogLines(logRef.current.slice(-ON_SCREEN_LOG_LIMIT));
   }, []);
+
+  useEffect(() => {
+    return subscribeReminderLog(appendLog);
+  }, [appendLog]);
+
+  const clearScheduledReminders = useCallback(async (logZoneCode: string | null) => {
+    const ids = reminderIdentifiersRef.current;
+    if (ids.length === 0) {
+      return;
+    }
+    for (const id of ids) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
+    reminderIdentifiersRef.current = [];
+    reminderZoneRef.current = null;
+    if (logZoneCode) {
+      appendLog(`reminder cancel ${logZoneCode}`);
+    }
+  }, [appendLog]);
+
+  const scheduleStopReminders = useCallback(
+    async (zoneCode: string, snap: DetectionSnapshot) => {
+      const stoppedSince = snap.stoppedSince;
+      if (stoppedSince === null) {
+        appendLog(`reminder skip ${zoneCode}`);
+        return;
+      }
+
+      const stopId = `${zoneCode}:${stoppedSince}`;
+      const plan = planStopReminders({
+        stopId,
+        zoneCode,
+        operatorName: '',
+        locale: locale === 'en' ? 'en' : 'mk',
+        nowMs: Date.now(),
+        anchorMs: null,
+        scheduledCount: 0,
+        secondDelayMinutes: DEFAULT_SECOND_REMINDER_MINUTES,
+        eligible: true,
+      });
+
+      if (reminderIdentifiersRef.current.length > 0) {
+        await clearScheduledReminders(null);
+      }
+
+      const deliveries = reminderDeliveries(plan);
+      const stored: string[] = [];
+      const fix = lastFixRef.current;
+
+      for (const delivery of deliveries) {
+        let notificationData = delivery.data;
+        if (
+          fix &&
+          Number.isFinite(fix.latitude) &&
+          Number.isFinite(fix.longitude)
+        ) {
+          notificationData = {
+            ...delivery.data,
+            latitude: fix.latitude,
+            longitude: fix.longitude,
+          };
+          if (fix.accuracyM !== null && Number.isFinite(fix.accuracyM)) {
+            notificationData = { ...notificationData, accuracyM: fix.accuracyM };
+          }
+        }
+
+        if (delivery.kind === 'first') {
+          await Notifications.scheduleNotificationAsync({
+            identifier: delivery.identifier,
+            content: {
+              title: delivery.title,
+              body: delivery.body,
+              data: notificationData,
+              categoryIdentifier: REMINDER_CATEGORY_ID,
+            },
+            trigger: null,
+          });
+          stored.push(delivery.identifier);
+          appendLog(`reminder schedule first ${zoneCode}`);
+          continue;
+        }
+
+        try {
+          await Notifications.scheduleNotificationAsync({
+            identifier: delivery.identifier,
+            content: {
+              title: delivery.title,
+              body: delivery.body,
+              data: notificationData,
+              categoryIdentifier: REMINDER_CATEGORY_ID,
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: new Date(delivery.fireAtMs),
+            },
+          });
+          stored.push(delivery.identifier);
+          appendLog(`reminder schedule second ${zoneCode}`);
+        } catch {
+          appendLog('reminder second unsupported');
+        }
+      }
+
+      reminderIdentifiersRef.current = stored;
+      reminderZoneRef.current = zoneCode;
+    },
+    [appendLog, clearScheduledReminders, locale],
+  );
 
   const runDetection = useCallback(
     (at: number, stepCount: number | null) => {
@@ -119,7 +248,8 @@ export default function DriveTestScreen() {
       const paid = paidForZone(features, holidays, zoneCode, at);
       const openSession = openSessionRef.current;
 
-      const prevState = snapshotRef.current.state;
+      const prevSnapshot = snapshotRef.current;
+      const prevState = prevSnapshot.state;
       const result = stepDetection(snapshotRef.current, {
         at,
         speedKmh,
@@ -156,19 +286,18 @@ export default function DriveTestScreen() {
 
       if (prevState !== result.snapshot.state) {
         appendLog(formatStateChangeLine(at, prevState, result.snapshot.state));
+        if (REMINDER_CANCEL_STATES.includes(result.snapshot.state)) {
+          const zoneForLog =
+            reminderZoneRef.current ?? prevSnapshot.zoneCode ?? '?';
+          void clearScheduledReminders(zoneForLog);
+        }
       }
 
       if (result.event.type === 'remind') {
-        void Notifications.scheduleNotificationAsync({
-          content: {
-            body: `Паркира во ${result.event.zoneCode}?`,
-            data: { zoneCode: result.event.zoneCode },
-          },
-          trigger: null,
-        });
+        void scheduleStopReminders(result.event.zoneCode, result.snapshot);
       }
     },
-    [appendLog],
+    [appendLog, clearScheduledReminders, scheduleStopReminders],
   );
 
   const updateCadence = useCallback(

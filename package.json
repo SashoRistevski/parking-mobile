@@ -45,7 +45,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/detection/machine.test.ts tests/detection/zone.test.ts"
+    "test": "node --experimental-strip-types --test tests/detection/machine.test.ts tests/detection/zone.test.ts tests/detection/reminders.test.ts tests/detection/reminderActions.test.ts tests/detection/falsePositiveCount.test.ts"
   },
   "private": true
 }
