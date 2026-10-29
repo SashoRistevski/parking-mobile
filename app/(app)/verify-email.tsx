@@ -27,12 +27,14 @@ export default function VerifyEmailScreen() {
     clearPostRegisterSetup,
     pendingPostRegisterSetup,
     refreshUser,
+    signOut,
   } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [resentMessage, setResentMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [resending, setResending] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const goAfterEmailStep = useCallback(() => {
     if (pendingPostRegisterSetup) {
@@ -82,6 +84,19 @@ export default function VerifyEmailScreen() {
     }
   }
 
+  async function onSignOut() {
+    if (signingOut) {
+      return;
+    }
+    setSigningOut(true);
+    try {
+      await signOut();
+    } catch (err) {
+      setError(displayErrorMessage(err));
+      setSigningOut(false);
+    }
+  }
+
   return (
     <Screen scroll includeTopInset={false}>
       <AppText variant="body" style={{ color: colors.muted }}>
@@ -112,12 +127,18 @@ export default function VerifyEmailScreen() {
         <Button
           title={confirming ? t('emailVerifyConfirming') : t('emailVerifyConfirm')}
           onPress={onConfirm}
-          disabled={code.length !== 6 || confirming}
+          disabled={code.length !== 6 || confirming || signingOut}
         />
         <Button
           title={resending ? t('emailVerifyResending') : t('emailVerifyResend')}
           onPress={onResend}
-          disabled={resending}
+          disabled={resending || signingOut}
+          variant="text"
+        />
+        <Button
+          title={t('logOut')}
+          onPress={() => void onSignOut()}
+          disabled={signingOut}
           variant="text"
         />
       </View>
