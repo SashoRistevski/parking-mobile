@@ -1,4 +1,6 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { forgotPassword } from '../../src/api/auth';
 import { displayErrorMessage } from '../../src/api/errors';
@@ -6,24 +8,39 @@ import { AppText } from '../../src/components/AppText';
 import { AuthScreen } from '../../src/components/AuthScreen';
 import { Button } from '../../src/components/Button';
 import { TextField } from '../../src/components/TextField';
+import { TextLink } from '../../src/components/TextLink';
 import { useLocale } from '../../src/i18n/LocaleProvider';
 import { useTheme } from '../../src/theme/ThemeProvider';
+
+function firstParam(value: string | string[] | undefined): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value) && typeof value[0] === 'string') {
+    return value[0];
+  }
+  return '';
+}
 
 export default function ForgotPasswordScreen() {
   const { t } = useLocale();
   const { colors } = useTheme();
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const router = useRouter();
+  const params = useLocalSearchParams<{ email?: string | string[] }>();
+  const [email, setEmail] = useState(() => firstParam(params.email));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit() {
     setError(null);
-    setMessage(null);
     setSubmitting(true);
     try {
-      const result = await forgotPassword(email.trim());
-      setMessage(result.message);
+      const trimmed = email.trim();
+      await forgotPassword(trimmed);
+      router.push({
+        pathname: '/(auth)/reset-password',
+        params: { email: trimmed },
+      });
     } catch (err) {
       setError(displayErrorMessage(err, 'email') || displayErrorMessage(err));
     } finally {
@@ -48,16 +65,21 @@ export default function ForgotPasswordScreen() {
           {error}
         </AppText>
       ) : null}
-      {message ? (
-        <AppText variant="body" style={{ color: colors.primary }}>
-          {message}
-        </AppText>
-      ) : null}
       <Button
         title={submitting ? t('sending') : t('sendReset')}
         onPress={onSubmit}
         disabled={submitting}
       />
+      <View style={styles.links}>
+        <TextLink href="/(auth)/login">{t('backToLogin')}</TextLink>
+      </View>
     </AuthScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  links: {
+    marginTop: 16,
+    gap: 8,
+  },
+});

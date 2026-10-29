@@ -9,11 +9,9 @@ import {
 } from 'react-native';
 
 import { useInterLoaded } from '../theme/FontContext';
+import { useLocale } from '../i18n/LocaleProvider';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
-
-const LOGO_ACCESSIBILITY_LABEL =
-  'Smart Park. Автоматски. Прецизно. Безгрижно.';
 
 type AuthScreenProps = {
   title: string;
@@ -36,6 +34,8 @@ export function AuthScreen({
 }: AuthScreenProps) {
   const { colors } = useTheme();
   const interLoaded = useInterLoaded();
+  const { t } = useLocale();
+  const logoAccessibilityLabel = `${t('appName')}. ${t('tagline')}`;
 
   return (
     <KeyboardAvoidingView
@@ -58,12 +58,18 @@ export function AuthScreen({
             ]}
           >
             <Image
-              accessibilityLabel={LOGO_ACCESSIBILITY_LABEL}
+              accessibilityLabel={logoAccessibilityLabel}
               accessible
               resizeMode="contain"
               source={require('../../assets/smartpark-logo.png')}
               style={styles.logo}
             />
+            <AppText
+              variant="body"
+              style={[styles.tagline, { color: colors.muted }]}
+            >
+              {t('tagline')}
+            </AppText>
           </View>
         ) : null}
         {showAppName && appName ? (
@@ -115,7 +121,13 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: 168,
-    height: 150,
+    height: 139,
+  },
+  tagline: {
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 13,
+    lineHeight: 18,
   },
   appName: {
     textAlign: 'center',

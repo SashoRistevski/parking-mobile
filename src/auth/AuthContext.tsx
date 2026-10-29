@@ -25,6 +25,7 @@ type AuthContextValue = {
   pendingPostRegisterSetup: boolean;
   markPostRegisterSetup: () => void;
   clearPostRegisterSetup: () => void;
+  refreshUser: () => Promise<void>;
   signInWithToken: (accessToken: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -58,6 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const me = await getMe();
     setUser(me.data);
   }, []);
+
+  const refreshUser = useCallback(async () => {
+    await loadUser();
+  }, [loadUser]);
 
   const handleUnauthorized = useCallback(() => {
     void clearSession();
@@ -135,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pendingPostRegisterSetup,
       markPostRegisterSetup,
       clearPostRegisterSetup,
+      refreshUser,
       signInWithToken,
       signOut,
     }),
@@ -145,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pendingPostRegisterSetup,
       markPostRegisterSetup,
       clearPostRegisterSetup,
+      refreshUser,
       signInWithToken,
       signOut,
     ],

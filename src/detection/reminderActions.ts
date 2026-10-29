@@ -15,7 +15,8 @@ export type ReminderActionDecision =
   | 'cancel'
   | 'snooze'
   | 'mark-sent'
-  | 'false-positive';
+  | 'false-positive'
+  | 'ignore-place';
 
 const DEFAULT_TAP_ACTION = 'expo.modules.notifications.actions.DEFAULT';
 
@@ -51,7 +52,7 @@ export function decideReminderAction(actionIdentifier: string): ReminderActionDe
     return 'false-positive';
   }
   if (actionIdentifier === 'ignore-place') {
-    return 'cancel';
+    return 'ignore-place';
   }
   return 'open-pay';
 }

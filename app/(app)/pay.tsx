@@ -30,6 +30,9 @@ import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
 import { TextField } from '../../src/components/TextField';
 import type { ZoneFeature } from '../../src/detection/zone';
+import { syncPrepaidExpiry } from '../../src/detection/prepaidExpiryScheduler';
+import { syncGradskiClockEnd } from '../../src/detection/gradskiClockEndScheduler';
+import { syncStillParked } from '../../src/detection/stillParkedScheduler';
 import { PlateBadge } from '../../src/components/PlateBadge';
 import { TextLink } from '../../src/components/TextLink';
 import { useLocale } from '../../src/i18n/LocaleProvider';
@@ -759,7 +762,15 @@ export default function PayScreen() {
     setMarkingAlreadyPaid(true);
     setError(null);
     try {
-      await markSent(preview.sessionId);
+      const sent = await markSent(preview.sessionId);
+      void syncPrepaidExpiry(sent.data);
+      void syncGradskiClockEnd(sent.data);
+      void syncStillParked(sent.data);
+      try {
+        await confirmSession(preview.sessionId, 'confirmed');
+      } catch {
+        // markSent succeeded; do not roll back or block close
+      }
       smsMarkedSentRef.current = true;
       setSmsMarkedSent(true);
       closingRef.current = true;
@@ -789,7 +800,10 @@ export default function PayScreen() {
         preview.body,
       );
       if (result === 'sent') {
-        await markSent(preview.sessionId);
+        const sent = await markSent(preview.sessionId);
+        void syncPrepaidExpiry(sent.data);
+        void syncGradskiClockEnd(sent.data);
+        void syncStillParked(sent.data);
         setSmsMarkedSent(true);
         setSmsResultLine(t('paySmsSent'));
       } else if (result === 'cancelled') {

@@ -62,8 +62,8 @@ describe('decideReminderAction', () => {
     assert.equal(decideReminderAction('not-parking'), 'false-positive');
   });
 
-  it('maps ignore-place to cancel', () => {
-    assert.equal(decideReminderAction('ignore-place'), 'cancel');
+  it('maps ignore-place to ignore-place', () => {
+    assert.equal(decideReminderAction('ignore-place'), 'ignore-place');
   });
 
   it('maps unknown identifiers to open-pay', () => {

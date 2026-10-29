@@ -161,6 +161,16 @@ async function fetchHolidaysConditional(etag: string | null) {
   });
 }
 
+export function findFeatureByCode(
+  features: ZoneFeature[],
+  code: string | null,
+): ZoneFeature | undefined {
+  if (!code) {
+    return undefined;
+  }
+  return features.find((f) => f.properties.code === code);
+}
+
 export function paidEndsAt(feature: ZoneFeature): string | null {
   return feature.properties.today?.ends_at ?? null;
 }

@@ -25,6 +25,9 @@ import { listVehicles, type Vehicle } from '../../src/api/vehicles';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
 import type { ZoneFeature } from '../../src/detection/zone';
+import { syncPrepaidExpiry } from '../../src/detection/prepaidExpiryScheduler';
+import { syncGradskiClockEnd } from '../../src/detection/gradskiClockEndScheduler';
+import { syncStillParked } from '../../src/detection/stillParkedScheduler';
 import { useLocale } from '../../src/i18n/LocaleProvider';
 import { useInterLoaded } from '../../src/theme/FontContext';
 import { lightColors } from '../../src/theme/colors';
@@ -53,6 +56,22 @@ function parseSessionId(
 
 function isPrepaid(session: ParkingSession): boolean {
   return session.payment_model === 'prepaid';
+}
+
+function sessionShown(
+  sessions: ParkingSession[],
+  routeSessionId: number | undefined,
+): ParkingSession | null {
+  if (sessions.length === 0) {
+    return null;
+  }
+  if (routeSessionId !== undefined) {
+    const match = sessions.find((s) => s.id === routeSessionId);
+    if (match) {
+      return match;
+    }
+  }
+  return sessions[0];
 }
 
 function formatClockFromIso(value: string): string {
@@ -240,6 +259,15 @@ export default function SessionScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    void syncPrepaidExpiry(sessionShown(sessions, routeSessionId));
+    void syncGradskiClockEnd(sessionShown(sessions, routeSessionId));
+    void syncStillParked(sessionShown(sessions, routeSessionId));
+  }, [loading, sessions, routeSessionId]);
+
   const handleSmsResult = useCallback(
     async (
       result: SessionResult,
@@ -258,7 +286,10 @@ export default function SessionScreen() {
         return;
       }
       if (outcome === 'sent') {
-        await markSent(result.data.id);
+        const sent = await markSent(result.data.id);
+        void syncPrepaidExpiry(sent.data);
+        void syncGradskiClockEnd(sent.data);
+        void syncStillParked(sent.data);
         await afterSent();
         return;
       }

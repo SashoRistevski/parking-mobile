@@ -13,12 +13,15 @@ import {
   type DetectionSnapshot,
   type DetectionState,
 } from '../../src/detection/machine';
+import { isIgnoredFix } from '../../src/detection/ignoreSpots';
+import { readIgnoredSpots } from '../../src/detection/ignoreList';
+import { readReminderDelays } from '../../src/detection/reminderDelaysStorage';
+import { readRemindersEnabled } from '../../src/detection/remindersEnabledStorage';
 import {
   REMINDER_CATEGORY_ID,
   subscribeReminderLog,
 } from '../../src/detection/reminderActions';
 import {
-  DEFAULT_SECOND_REMINDER_MINUTES,
   planStopReminders,
   reminderDeliveries,
 } from '../../src/detection/reminders';
@@ -134,6 +137,10 @@ export default function DriveTestScreen() {
 
   const scheduleStopReminders = useCallback(
     async (zoneCode: string, snap: DetectionSnapshot) => {
+      if (!readRemindersEnabled()) {
+        return;
+      }
+
       const stoppedSince = snap.stoppedSince;
       if (stoppedSince === null) {
         appendLog(`reminder skip ${zoneCode}`);
@@ -149,7 +156,7 @@ export default function DriveTestScreen() {
         nowMs: Date.now(),
         anchorMs: null,
         scheduledCount: 0,
-        secondDelayMinutes: DEFAULT_SECOND_REMINDER_MINUTES,
+        secondDelayMinutes: readReminderDelays().secondReminderMinutes,
         eligible: true,
       });
 
@@ -248,6 +255,19 @@ export default function DriveTestScreen() {
       const paid = paidForZone(features, holidays, zoneCode, at);
       const openSession = openSessionRef.current;
 
+      let ignored = false;
+      try {
+        const spots = readIgnoredSpots();
+        if (fix) {
+          ignored = isIgnoredFix(spots, {
+            latitude: fix.latitude,
+            longitude: fix.longitude,
+          });
+        }
+      } catch {
+        ignored = false;
+      }
+
       const prevSnapshot = snapshotRef.current;
       const prevState = prevSnapshot.state;
       const result = stepDetection(snapshotRef.current, {
@@ -261,7 +281,7 @@ export default function DriveTestScreen() {
         ambiguous,
         paidNow: paid,
         openSession,
-        ignored: false,
+        ignored,
         remindedRecently: false,
       });
 

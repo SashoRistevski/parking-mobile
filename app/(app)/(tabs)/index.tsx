@@ -24,6 +24,9 @@ import {
   type Holiday,
   type ZoneFeature,
 } from '../../../src/detection/zone';
+import { syncPrepaidExpiry } from '../../../src/detection/prepaidExpiryScheduler';
+import { syncGradskiClockEnd } from '../../../src/detection/gradskiClockEndScheduler';
+import { syncStillParked } from '../../../src/detection/stillParkedScheduler';
 import { useLocale } from '../../../src/i18n/LocaleProvider';
 import { useInterLoaded } from '../../../src/theme/FontContext';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -224,6 +227,13 @@ export default function MapScreen() {
         try {
           const active = await getActiveSessions();
           setActiveSession(active[0] ?? null);
+          const prepaid =
+            active.find((s) => s.payment_model === 'prepaid') ?? null;
+          const gradski =
+            active.find((s) => s.payment_model === 'session') ?? null;
+          void syncPrepaidExpiry(prepaid);
+          void syncGradskiClockEnd(gradski);
+          void syncStillParked(gradski);
         } catch {
           // leave map as it is
         }

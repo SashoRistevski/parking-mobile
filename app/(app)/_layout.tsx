@@ -3,9 +3,10 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
-import { markSent, startSession } from '../../src/api/sessions';
+import { confirmSession, markSent, startSession } from '../../src/api/sessions';
 import { listVehicles } from '../../src/api/vehicles';
 import { recordFalsePositive } from '../../src/detection/falsePositives';
+import { saveIgnoredSpot } from '../../src/detection/ignoreList';
 import {
   buildAlreadyPaidStart,
   decideReminderAction,
@@ -14,10 +15,36 @@ import {
   reminderActionButtons,
 } from '../../src/detection/reminderActions';
 import {
+  gradskiClockEndCategoryButtons,
+  GRADSKI_CLOCK_END_ID,
+  isGradskiClockEndResponse,
+  sessionIdFromGradskiClockEndData,
+  shouldOpenSessionFromGradskiClockEnd,
+  syncGradskiClockEnd,
+} from '../../src/detection/gradskiClockEndScheduler';
+import {
+  isStillParkedResponse,
+  sessionIdFromStillParkedData,
+  shouldOpenSessionFromStillParked,
+  stillParkedCategoryButtons,
+  STILL_PARKED_ID,
+  syncStillParked,
+} from '../../src/detection/stillParkedScheduler';
+import {
+  isPrepaidExpiryResponse,
+  prepaidExpiryCategoryButtons,
+  sessionIdFromPrepaidExpiryData,
+  shouldOpenSessionFromPrepaidExpiry,
+  syncPrepaidExpiry,
+  PREPAID_EXPIRY_ID,
+} from '../../src/detection/prepaidExpiryScheduler';
+import {
   planStopReminders,
   reminderDeliveries,
   type ReminderNotificationData,
 } from '../../src/detection/reminders';
+import { readReminderDelays } from '../../src/detection/reminderDelaysStorage';
+import { readRemindersEnabled } from '../../src/detection/remindersEnabledStorage';
 import { loadZoneCache } from '../../src/zones/cache';
 import { useLocale } from '../../src/i18n/LocaleProvider';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -125,15 +152,89 @@ export default function AppLayout() {
         options: { opensAppToForeground: true },
       })),
     );
+    const extendButtons = prepaidExpiryCategoryButtons(locale);
+    void Notifications.setNotificationCategoryAsync(
+      PREPAID_EXPIRY_ID,
+      extendButtons.map(({ identifier, buttonTitle }) => ({
+        identifier,
+        buttonTitle,
+        options: { opensAppToForeground: true },
+      })),
+    );
+    const stillParkedButtons = stillParkedCategoryButtons(locale);
+    void Notifications.setNotificationCategoryAsync(
+      STILL_PARKED_ID,
+      stillParkedButtons.map(({ identifier, buttonTitle }) => ({
+        identifier,
+        buttonTitle,
+        options: { opensAppToForeground: true },
+      })),
+    );
+    const stopButtons = gradskiClockEndCategoryButtons(locale);
+    void Notifications.setNotificationCategoryAsync(
+      GRADSKI_CLOCK_END_ID,
+      stopButtons.map(({ identifier, buttonTitle }) => ({
+        identifier,
+        buttonTitle,
+        options: { opensAppToForeground: true },
+      })),
+    );
   }, [locale]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const actionIdentifier = response.actionIdentifier;
-        const data = response.notification.request.content.data as
-          | Record<string, unknown>
-          | undefined;
+        const content = response.notification.request.content;
+        const data = content.data as Record<string, unknown> | undefined;
+        if (
+          isStillParkedResponse(content.categoryIdentifier, data) &&
+          shouldOpenSessionFromStillParked(actionIdentifier)
+        ) {
+          const sessionId = sessionIdFromStillParkedData(data);
+          if (sessionId !== undefined) {
+            router.push({
+              pathname: '/(app)/session',
+              params: { sessionId: String(sessionId) },
+            });
+          } else {
+            router.push('/(app)/session');
+          }
+          return;
+        }
+
+        if (
+          isGradskiClockEndResponse(content.categoryIdentifier, data) &&
+          shouldOpenSessionFromGradskiClockEnd(actionIdentifier)
+        ) {
+          const sessionId = sessionIdFromGradskiClockEndData(data);
+          if (sessionId !== undefined) {
+            router.push({
+              pathname: '/(app)/session',
+              params: { sessionId: String(sessionId) },
+            });
+          } else {
+            router.push('/(app)/session');
+          }
+          return;
+        }
+
+        if (
+          isPrepaidExpiryResponse(content.categoryIdentifier, data) &&
+          shouldOpenSessionFromPrepaidExpiry(actionIdentifier)
+        ) {
+          const sessionId = sessionIdFromPrepaidExpiryData(data);
+          if (sessionId !== undefined) {
+            router.push({
+              pathname: '/(app)/session',
+              params: { sessionId: String(sessionId) },
+            });
+          } else {
+            router.push('/(app)/session');
+          }
+          return;
+        }
+
         const zoneForLog = logZoneCode(data);
         const decision = decideReminderAction(actionIdentifier);
 
@@ -165,6 +266,39 @@ export default function AppLayout() {
                 await cancelStopReminderNotifications(stopId);
               }
               emitReminderLog(`reminder action not-parking ${zoneForLog} failed`);
+            }
+          })();
+          return;
+        }
+
+        if (decision === 'ignore-place') {
+          const stopId = stopIdFromData(data);
+          void (async () => {
+            const point = reminderPointFromData(data);
+            if (!point) {
+              emitReminderLog(
+                `reminder action ignore-place ${zoneForLog} missing-point`,
+              );
+            } else {
+              try {
+                const { added } = await saveIgnoredSpot(point);
+                if (added) {
+                  emitReminderLog(
+                    `reminder action ignore-place ${zoneForLog} ignored`,
+                  );
+                } else {
+                  emitReminderLog(
+                    `reminder action ignore-place ${zoneForLog} already`,
+                  );
+                }
+              } catch {
+                emitReminderLog(
+                  `reminder action ignore-place ${zoneForLog} failed`,
+                );
+              }
+            }
+            if (stopId) {
+              await cancelStopReminderNotifications(stopId);
             }
           })();
           return;
@@ -237,19 +371,31 @@ export default function AppLayout() {
               alreadyPaidIdempotencyKeys.set(stopId, key);
             }
 
+            let sessionId: number;
             try {
               const result = await startSession(built.body, {
                 idempotencyKey: key,
               });
-              const sessionId = result.data.id;
+              sessionId = result.data.id;
               if (!Number.isFinite(sessionId)) {
                 emitReminderLog(`reminder action already-paid ${zoneCode} failed`);
                 return;
               }
-              await markSent(sessionId);
+              const sent = await markSent(sessionId);
+              await syncPrepaidExpiry(sent.data);
+              await syncGradskiClockEnd(sent.data);
+              await syncStillParked(sent.data);
             } catch {
               emitReminderLog(`reminder action already-paid ${zoneCode} failed`);
               return;
+            }
+
+            try {
+              await confirmSession(sessionId, 'confirmed');
+            } catch {
+              emitReminderLog(
+                `reminder action already-paid ${zoneCode} confirm-failed`,
+              );
             }
 
             await cancelStopReminderNotifications(stopId);
@@ -267,6 +413,9 @@ export default function AppLayout() {
 
         void (async () => {
           await cancelStopReminderNotifications(stopId);
+          if (!readRemindersEnabled()) {
+            return;
+          }
           const nowMs = Date.now();
           const plan = planStopReminders({
             stopId,
@@ -276,7 +425,7 @@ export default function AppLayout() {
             nowMs,
             anchorMs: nowMs,
             scheduledCount: 1,
-            secondDelayMinutes: 5,
+            secondDelayMinutes: readReminderDelays().secondReminderMinutes,
             eligible: true,
           });
           const deliveries = reminderDeliveries(plan);
@@ -315,6 +464,13 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
+        name="verify-email"
+        options={{
+          title: t('emailVerifyTitle'),
+          headerBackVisible: false,
+        }}
+      />
+      <Stack.Screen
         name="setup"
         options={{
           title: t('setupTitle'),
@@ -334,6 +490,10 @@ export default function AppLayout() {
       <Stack.Screen
         name="report-zone"
         options={{ title: t('reportWrongZoneTitle') }}
+      />
+      <Stack.Screen
+        name="reminders"
+        options={{ title: t('remindersTitle') }}
       />
       <Stack.Screen
         name="pay"

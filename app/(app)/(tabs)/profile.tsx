@@ -45,6 +45,7 @@ export default function ProfileScreen() {
           {t('notifications')}
         </TextLink>
         <TextLink href="/(app)/report-zone">{t('reportWrongZoneTitle')}</TextLink>
+        <TextLink href="/(app)/reminders">{t('remindersTitle')}</TextLink>
       </View>
 
       <Button title={t('logOut')} onPress={() => void signOut()} />
