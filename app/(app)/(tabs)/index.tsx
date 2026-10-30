@@ -161,6 +161,7 @@ export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const didCenterThisFocusRef = useRef(false);
   const mapFocusedRef = useRef(false);
+  const mapReadyRef = useRef(false);
 
   const [features, setFeatures] = useState<ZoneFeature[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -230,7 +231,7 @@ export default function MapScreen() {
 
   const centerCameraOnFix = useCallback(
     (fix: { lat: number; lng: number }) => {
-      if (!mapRef.current) {
+      if (!mapRef.current || !mapReadyRef.current) {
         return false;
       }
       mapRef.current.animateToRegion(
@@ -248,7 +249,11 @@ export default function MapScreen() {
   );
 
   const tryCenterOnceThisFocus = useCallback(() => {
-    if (didCenterThisFocusRef.current || !mapFocusedRef.current) {
+    if (
+      didCenterThisFocusRef.current ||
+      !mapFocusedRef.current ||
+      !mapReadyRef.current
+    ) {
       return;
     }
     const fix = lastFixRef.current;
@@ -259,6 +264,11 @@ export default function MapScreen() {
       didCenterThisFocusRef.current = true;
     }
   }, [centerCameraOnFix]);
+
+  const onMapReady = useCallback(() => {
+    mapReadyRef.current = true;
+    tryCenterOnceThisFocus();
+  }, [tryCenterOnceThisFocus]);
 
   useFocusEffect(
     useCallback(() => {
@@ -420,29 +430,48 @@ export default function MapScreen() {
     }
 
     let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
+
+    const applyFix = (fix: Location.LocationObject) => {
+      setLastFix({
+        lat: fix.coords.latitude,
+        lng: fix.coords.longitude,
+        accuracyM: fix.coords.accuracy ?? null,
+      });
+      updateBannerFromLocal(
+        fix.coords.latitude,
+        fix.coords.longitude,
+        fix.coords.accuracy ?? null,
+      );
+    };
 
     void (async () => {
+      try {
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (!cancelled) {
+          applyFix(current);
+        }
+      } catch {
+        // watch may still deliver a fix
+      }
+
+      if (cancelled) {
+        return;
+      }
+
       subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
           distanceInterval: 10,
         },
-        (fix) => {
-          setLastFix({
-            lat: fix.coords.latitude,
-            lng: fix.coords.longitude,
-            accuracyM: fix.coords.accuracy ?? null,
-          });
-          updateBannerFromLocal(
-            fix.coords.latitude,
-            fix.coords.longitude,
-            fix.coords.accuracy ?? null,
-          );
-        },
+        applyFix,
       );
     })();
 
     return () => {
+      cancelled = true;
       subscription?.remove();
     };
   }, [locationGranted, updateBannerFromLocal]);
@@ -587,7 +616,7 @@ export default function MapScreen() {
           longitudeDelta: MAP_DELTA,
         }}
         showsUserLocation={locationGranted}
-        onMapReady={tryCenterOnceThisFocus}
+        onMapReady={onMapReady}
       >
         {rings.map((spec) => {
           const code = spec.feature.properties.code;
