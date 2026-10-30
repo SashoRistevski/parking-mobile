@@ -13,6 +13,7 @@ import {
   translate,
 } from './catalogs';
 import { resolveInitialLocale } from './locale';
+import { readLocaleOverride, writeLocale } from './localeStorage';
 
 type LocaleContextValue = {
   locale: Locale;
@@ -22,8 +23,17 @@ type LocaleContextValue = {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
+function initialLocale(): Locale {
+  return readLocaleOverride() ?? resolveInitialLocale();
+}
+
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(resolveInitialLocale);
+  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next);
+    void writeLocale(next);
+  }, []);
 
   const t = useCallback(
     (key: TranslationKey) => translate(locale, key),
@@ -36,7 +46,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       setLocale,
       t,
     }),
-    [locale, t],
+    [locale, setLocale, t],
   );
 
   return (

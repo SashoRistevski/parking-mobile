@@ -36,10 +36,37 @@ export async function register(
   });
 }
 
+export async function verifyEmail(code: string): Promise<void> {
+  await apiRequest<void>('/auth/verify-email', {
+    method: 'POST',
+    body: { code },
+    auth: true,
+  });
+}
+
+export async function resendEmailVerificationCode(): Promise<void> {
+  await apiRequest<void>('/auth/email/resend', {
+    method: 'POST',
+    auth: true,
+  });
+}
+
 export async function forgotPassword(email: string): Promise<MessageResponse> {
   return apiRequest<MessageResponse>('/auth/forgot-password', {
     method: 'POST',
     body: { email },
+    auth: false,
+  });
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  password: string,
+): Promise<MessageResponse> {
+  return apiRequest<MessageResponse>('/auth/reset-password', {
+    method: 'POST',
+    body: { email, code, password },
     auth: false,
   });
 }
@@ -54,6 +81,18 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/me', {
     method: 'GET',
+    auth: true,
+  });
+}
+
+export type UpdateMeInput = {
+  phone_number: string | null;
+};
+
+export async function updateMe(body: UpdateMeInput): Promise<MeResponse> {
+  return apiRequest<MeResponse>('/me', {
+    method: 'PATCH',
+    body,
     auth: true,
   });
 }

@@ -1,14 +1,23 @@
+import type { CandidateZone } from './sessions';
 import type { ApiErrorBody } from './types';
+
+type ApiErrorPayload = ApiErrorBody & {
+  candidates?: CandidateZone[];
+};
 
 export class ApiError extends Error {
   readonly status: number;
   readonly errors?: Record<string, string[]>;
+  readonly candidates?: CandidateZone[];
 
-  constructor(status: number, body: ApiErrorBody) {
+  constructor(status: number, body: ApiErrorPayload) {
     super(body.message);
     this.name = 'ApiError';
     this.status = status;
     this.errors = body.errors;
+    if (Array.isArray(body.candidates)) {
+      this.candidates = body.candidates;
+    }
   }
 }
 

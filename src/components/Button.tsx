@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet } from 'react-native';
 
 import { useInterLoaded } from '../theme/FontContext';
+import { lightColors } from '../theme/colors';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'pay';
+export type ButtonVariant = 'primary' | 'secondary' | 'pay' | 'text';
 
 type ButtonProps = {
   title: string;
@@ -19,18 +20,25 @@ export function Button({
   disabled = false,
   variant = 'primary',
 }: ButtonProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const interLoaded = useInterLoaded();
 
   let backgroundColor = colors.primary;
   let textColor = colors.textOnPrimary;
+  let borderWidth = 0;
+  let borderColor = colors.border;
 
   if (variant === 'secondary') {
-    backgroundColor = isDark ? colors.card : colors.brandSoft;
-    textColor = isDark ? colors.primary : colors.navy;
+    backgroundColor = colors.card;
+    textColor = colors.navy;
+    borderWidth = 1;
+    borderColor = colors.border;
   } else if (variant === 'pay') {
     backgroundColor = colors.pay;
-    textColor = colors.textOnPrimary;
+    textColor = lightColors.primary;
+  } else if (variant === 'text') {
+    backgroundColor = 'transparent';
+    textColor = colors.primary600;
   }
 
   return (
@@ -40,8 +48,11 @@ export function Button({
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        variant === 'text' ? styles.buttonText : null,
         {
           backgroundColor,
+          borderWidth,
+          borderColor,
           opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
         },
       ]}
@@ -51,7 +62,9 @@ export function Button({
         style={{
           color: textColor,
           textAlign: 'center',
-          fontFamily: interLoaded ? 'Inter_600SemiBold' : undefined,
+          fontSize: 17,
+          lineHeight: 22,
+          fontFamily: interLoaded ? 'Inter_700Bold' : undefined,
         }}
       >
         {title}
@@ -62,9 +75,15 @@ export function Button({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 8,
-    paddingVertical: 12,
+    borderRadius: 16,
+    minHeight: 54,
     paddingHorizontal: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    minHeight: undefined,
+    paddingVertical: 8,
+    paddingHorizontal: 0,
   },
 });

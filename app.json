@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Паркирај",
+    "name": "Smart Park",
     "slug": "parking-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,13 +20,15 @@
               "NSExceptionAllowsInsecureHTTPLoads": true
             }
           }
-        }
+        },
+        "NSLocationWhenInUseUsageDescription": "Smart Park uses your location while Drive test is open, to see whether you stopped in a paid zone.",
+        "NSMotionUsageDescription": "Smart Park counts steps during Drive test, to tell walking from a stop."
       }
     },
     "android": {
       "package": "mk.sasho.parking",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -48,11 +50,18 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["mk", "en"],
-            "android": ["mk", "en"]
+            "ios": [
+              "mk",
+              "en"
+            ],
+            "android": [
+              "mk",
+              "en"
+            ]
           }
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

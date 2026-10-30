@@ -1,8 +1,8 @@
 {
   "ios": {
-    "CFBundleDisplayName": "ParkPay"
+    "CFBundleDisplayName": "Smart Park"
   },
   "android": {
-    "app_name": "ParkPay"
+    "app_name": "Smart Park"
   }
 }
