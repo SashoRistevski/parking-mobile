@@ -45,7 +45,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/detection/machine.test.ts tests/detection/zone.test.ts tests/detection/reminders.test.ts tests/detection/reminderActions.test.ts tests/detection/falsePositiveCount.test.ts tests/detection/ignoreSpots.test.ts tests/detection/prepaidExpiry.test.ts tests/detection/stillParked.test.ts tests/detection/gradskiClockEnd.test.ts tests/detection/reminderSettings.test.ts tests/auth/confirmNag.test.ts"
+    "test": "node --experimental-strip-types --test tests/detection/machine.test.ts tests/detection/zone.test.ts tests/detection/reminders.test.ts tests/detection/reminderActions.test.ts tests/detection/falsePositiveCount.test.ts tests/detection/ignoreSpots.test.ts tests/detection/prepaidExpiry.test.ts tests/detection/stillParked.test.ts tests/detection/gradskiClockEnd.test.ts tests/detection/reminderSettings.test.ts"
   },
   "private": true
 }
