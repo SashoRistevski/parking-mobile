@@ -19,53 +19,6 @@ import { useLocale } from '../../src/i18n/LocaleProvider';
 import { useInterLoaded } from '../../src/theme/FontContext';
 import { useTheme } from '../../src/theme/ThemeProvider';
 
-function RegisterLanguageSwitch() {
-  const { locale, setLocale } = useLocale();
-  const { colors, isDark } = useTheme();
-  const interLoaded = useInterLoaded();
-  const activeTextColor = isDark ? colors.textOnPrimary : '#FFFFFF';
-
-  return (
-    <View
-      accessibilityRole="radiogroup"
-      style={[
-        styles.langPill,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
-      {(['mk', 'en'] as const).map((code) => {
-        const active = locale === code;
-        const label = code === 'mk' ? 'МК' : 'EN';
-        return (
-          <Pressable
-            key={code}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: active }}
-            onPress={() => setLocale(code)}
-            style={[
-              styles.langSegment,
-              active ? { backgroundColor: colors.primary } : null,
-            ]}
-          >
-            <AppText
-              variant="body"
-              style={[
-                styles.langSegmentText,
-                interLoaded ? { fontFamily: 'Inter_700Bold' } : null,
-                active
-                  ? { color: activeTextColor }
-                  : { color: colors.muted },
-              ]}
-            >
-              {label}
-            </AppText>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 function FieldLabel({ children }: { children: string }) {
   const interLoaded = useInterLoaded();
   const labelStyle: TextStyle = interLoaded
@@ -138,8 +91,8 @@ export default function RegisterScreen() {
     <AuthScreen
       alignTop
       showBrandLogo
+      showLocalePicker
       title={t('createProfile')}
-      topSlot={<RegisterLanguageSwitch />}
     >
       <AppText
         variant="body"
@@ -230,23 +183,6 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  langPill: {
-    flexDirection: 'row',
-    borderRadius: 999,
-    borderWidth: 1,
-    padding: 3,
-  },
-  langSegment: {
-    height: 32,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  langSegmentText: {
-    fontSize: 13,
-    lineHeight: 16,
-  },
   reminder: {
     fontSize: 15,
     lineHeight: 22,

@@ -35,6 +35,8 @@ const catalogs = {
     sendReset: 'Испрати код',
     macedonian: 'Македонски',
     english: 'English',
+    localeMk: 'МК',
+    localeEn: 'EN',
     forgotPasswordHelp:
       'Внесете ја е-поштата за вашата сметка. Ќе ви испратиме шестцифрен код.',
     forgotPasswordSent:
@@ -224,6 +226,8 @@ const catalogs = {
     sendReset: 'Send code',
     macedonian: 'Македонски',
     english: 'English',
+    localeMk: 'МК',
+    localeEn: 'EN',
     forgotPasswordHelp:
       'Enter the email address for your account. We will send a six-digit code.',
     forgotPasswordSent:

@@ -3,13 +3,15 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
 
-import { useInterLoaded } from '../theme/FontContext';
+import type { Locale } from '../i18n/catalogs';
 import { useLocale } from '../i18n/LocaleProvider';
+import { useInterLoaded } from '../theme/FontContext';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
 
@@ -21,7 +23,55 @@ type AuthScreenProps = {
   appName?: string;
   topSlot?: ReactNode;
   alignTop?: boolean;
+  showLocalePicker?: boolean;
 };
+
+function LocalePicker() {
+  const { locale, setLocale, t } = useLocale();
+  const { colors, isDark } = useTheme();
+  const interLoaded = useInterLoaded();
+  const activeTextColor = isDark ? colors.textOnPrimary : '#FFFFFF';
+
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      style={[
+        styles.langPill,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
+      {(['mk', 'en'] as const).map((code: Locale) => {
+        const active = locale === code;
+        const label = code === 'mk' ? t('localeMk') : t('localeEn');
+        return (
+          <Pressable
+            key={code}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active }}
+            onPress={() => setLocale(code)}
+            style={[
+              styles.langSegment,
+              active ? { backgroundColor: colors.primary } : null,
+            ]}
+          >
+            <AppText
+              variant="body"
+              style={[
+                styles.langSegmentText,
+                interLoaded ? { fontFamily: 'Inter_700Bold' } : null,
+                active
+                  ? { color: activeTextColor }
+                  : { color: colors.muted },
+              ]}
+            >
+              {label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export function AuthScreen({
   title,
@@ -31,6 +81,7 @@ export function AuthScreen({
   appName,
   topSlot,
   alignTop = false,
+  showLocalePicker = false,
 }: AuthScreenProps) {
   const { colors } = useTheme();
   const interLoaded = useInterLoaded();
@@ -49,7 +100,12 @@ export function AuthScreen({
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {topSlot ? <View style={styles.topSlot}>{topSlot}</View> : null}
+        {showLocalePicker || topSlot ? (
+          <View style={styles.topSlot}>
+            {showLocalePicker ? <LocalePicker /> : null}
+            {topSlot}
+          </View>
+        ) : null}
         {showBrandLogo ? (
           <View
             style={[
@@ -110,6 +166,24 @@ const styles = StyleSheet.create({
   topSlot: {
     alignItems: 'flex-end',
     marginBottom: 22,
+    gap: 12,
+  },
+  langPill: {
+    flexDirection: 'row',
+    borderRadius: 999,
+    borderWidth: 1,
+    padding: 3,
+  },
+  langSegment: {
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  langSegmentText: {
+    fontSize: 13,
+    lineHeight: 16,
   },
   logoTile: {
     alignSelf: 'center',
