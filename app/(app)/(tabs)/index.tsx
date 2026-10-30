@@ -159,6 +159,8 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const interLoaded = useInterLoaded();
   const mapRef = useRef<MapView>(null);
+  const didCenterThisFocusRef = useRef(false);
+  const mapFocusedRef = useRef(false);
 
   const [features, setFeatures] = useState<ZoneFeature[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -182,6 +184,7 @@ export default function MapScreen() {
     lng: number;
     accuracyM: number | null;
   } | null>(null);
+  const lastFixRef = useRef(lastFix);
 
   const [defaultVehicle, setDefaultVehicle] = useState<Vehicle | null>(null);
   const [activeSession, setActiveSession] = useState<ParkingSession | null>(
@@ -191,6 +194,10 @@ export default function MapScreen() {
   const featuresRef = useRef(features);
   const holidaysRef = useRef(holidays);
   const fetchedAtRef = useRef(0);
+
+  useEffect(() => {
+    lastFixRef.current = lastFix;
+  }, [lastFix]);
 
   useEffect(() => {
     featuresRef.current = features;
@@ -221,8 +228,44 @@ export default function MapScreen() {
     })();
   }, []);
 
+  const centerCameraOnFix = useCallback(
+    (fix: { lat: number; lng: number }) => {
+      if (!mapRef.current) {
+        return false;
+      }
+      mapRef.current.animateToRegion(
+        {
+          latitude: fix.lat,
+          longitude: fix.lng,
+          latitudeDelta: MAP_DELTA,
+          longitudeDelta: MAP_DELTA,
+        },
+        300,
+      );
+      return true;
+    },
+    [],
+  );
+
+  const tryCenterOnceThisFocus = useCallback(() => {
+    if (didCenterThisFocusRef.current || !mapFocusedRef.current) {
+      return;
+    }
+    const fix = lastFixRef.current;
+    if (!fix) {
+      return;
+    }
+    if (centerCameraOnFix(fix)) {
+      didCenterThisFocusRef.current = true;
+    }
+  }, [centerCameraOnFix]);
+
   useFocusEffect(
     useCallback(() => {
+      mapFocusedRef.current = true;
+      didCenterThisFocusRef.current = false;
+      tryCenterOnceThisFocus();
+
       void (async () => {
         try {
           const active = await getActiveSessions();
@@ -238,8 +281,16 @@ export default function MapScreen() {
           // leave map as it is
         }
       })();
-    }, []),
+
+      return () => {
+        mapFocusedRef.current = false;
+      };
+    }, [tryCenterOnceThisFocus]),
   );
+
+  useEffect(() => {
+    tryCenterOnceThisFocus();
+  }, [lastFix, tryCenterOnceThisFocus]);
 
   useEffect(() => {
     void (async () => {
@@ -420,16 +471,8 @@ export default function MapScreen() {
     if (!lastFix) {
       return;
     }
-    mapRef.current?.animateToRegion(
-      {
-        latitude: lastFix.lat,
-        longitude: lastFix.lng,
-        latitudeDelta: MAP_DELTA,
-        longitudeDelta: MAP_DELTA,
-      },
-      300,
-    );
-  }, [lastFix]);
+    centerCameraOnFix(lastFix);
+  }, [centerCameraOnFix, lastFix]);
 
   const openSession = useCallback(() => {
     if (!activeSession) {
@@ -544,6 +587,7 @@ export default function MapScreen() {
           longitudeDelta: MAP_DELTA,
         }}
         showsUserLocation={locationGranted}
+        onMapReady={tryCenterOnceThisFocus}
       >
         {rings.map((spec) => {
           const code = spec.feature.properties.code;
